@@ -1,0 +1,8 @@
+!.gitignore
+!.scalafmt.conf
+
+target
+
+.bsp
+.idea
+metals.sbt
