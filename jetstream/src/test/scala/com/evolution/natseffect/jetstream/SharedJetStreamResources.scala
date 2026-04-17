@@ -15,6 +15,7 @@ object SharedJetStreamResources extends GlobalResource {
           .port(4224)
           .jetStream(true)
           .autostart(true)
+          .shutdownHook(false)
       )
     }
   )(nats => IO.delay(nats.close()))
@@ -22,11 +23,11 @@ object SharedJetStreamResources extends GlobalResource {
   override def sharedResources(global: GlobalWrite): Resource[IO, Unit] =
     for {
       nats <- resource
-      _    <- global.putR(nats)
+      _    <- global.putR(nats, Some("js"))
     } yield ()
 
   def get(global: GlobalRead): Resource[IO, Nats] =
-    global.getR[Nats]().flatMap {
+    global.getR[Nats](Some("js")).flatMap {
       case None       => resource
       case Some(nats) => IO(nats).toResource
     }

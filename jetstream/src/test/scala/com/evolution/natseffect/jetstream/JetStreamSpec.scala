@@ -9,6 +9,8 @@ import scala.util.Random
 
 abstract class JetStreamSpec(global: GlobalRead) extends IOSuite {
 
+  override def maxParallelism = 1
+
   override type Res = berlin.yuna.natsserver.logic.Nats
 
   type SubjectName = String
