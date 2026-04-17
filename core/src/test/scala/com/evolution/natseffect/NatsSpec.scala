@@ -8,6 +8,8 @@ import scala.util.Random
 
 abstract class NatsSpec(global: GlobalRead) extends IOSuite {
 
+  override def maxParallelism = 1
+
   override type Res = Nats
 
   override def sharedResource: Resource[IO, Nats] = SharedResources.get(global)

@@ -1,5 +1,3 @@
-![nats-effect](nats-effect-logo.png)
-
 # Nats Effect
 
 Scala client for [NATS](https://nats.io/), based on the official [Java NATS Client](https://github.com/nats-io/nats.java).
