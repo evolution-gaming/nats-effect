@@ -18,7 +18,7 @@ private[natseffect] class JetStreamImpl[F[_]: Async](wrappedConnection: WrappedC
     }
 
   override def streamContext(streamName: String, jetStreamOptions: Option[JetStreamOptions]): F[StreamContext[F]] =
-    Async[F].delay {
+    Async[F].blocking {
       new WrappedStreamContext[F](
         wrappedConnection.asJava.getStreamContext(streamName, jetStreamOptions.orNull),
         wrappedConnection.asJava
@@ -26,7 +26,7 @@ private[natseffect] class JetStreamImpl[F[_]: Async](wrappedConnection: WrappedC
     }
 
   override def keyValue(bucketName: String, keyValueOptions: Option[KeyValueOptions] = None): F[KeyValue[F]] =
-    Async[F].delay {
+    Async[F].blocking {
       new WrappedKeyValue[F](
         wrappedConnection.asJava.keyValue(bucketName, keyValueOptions.orNull),
         this,
