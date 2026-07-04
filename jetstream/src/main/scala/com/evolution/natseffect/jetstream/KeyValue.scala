@@ -300,6 +300,43 @@ trait KeyValue[F[_]] {
     */
   def keys(filters: List[String], timeout: FiniteDuration): F[List[String]]
 
+  /** Get all keys in the bucket along with the warmup outcome.
+    *
+    * <p>Unlike [[keys]], this surfaces the [[Warmup.Result]] so callers can tell whether the returned list is complete
+    * ([[Warmup.Result.Success]]) or was cut short because `timeout` elapsed before every pending message was drained
+    * ([[Warmup.Result.Timeout]]). `keys` cannot distinguish these cases and will silently return a partial key set on timeout.
+    *
+    * @param timeout
+    *   timeout for the operation
+    * @return
+    *   effect yielding the collected keys and the warmup result
+    */
+  def keysDetailed(timeout: FiniteDuration): F[KeysResult]
+
+  /** Get keys matching a filter along with the warmup outcome. See [[keysDetailed(timeout* keysDetailed]] for why the warmup result
+    * matters.
+    *
+    * @param filter
+    *   wildcard filter (e.g., "orders.*")
+    * @param timeout
+    *   timeout for the operation
+    * @return
+    *   effect yielding the collected keys and the warmup result
+    */
+  def keysDetailed(filter: String, timeout: FiniteDuration): F[KeysResult]
+
+  /** Get keys matching multiple filters along with the warmup outcome. See [[keysDetailed(timeout* keysDetailed]] for why the warmup result
+    * matters.
+    *
+    * @param filters
+    *   list of wildcard filters
+    * @param timeout
+    *   timeout for the operation
+    * @return
+    *   effect yielding the collected keys and the warmup result
+    */
+  def keysDetailed(filters: List[String], timeout: FiniteDuration): F[KeysResult]
+
   /** Consume all keys from a queue source.
     *
     * @param queueCapacity
@@ -348,3 +385,13 @@ trait KeyValue[F[_]] {
     */
   def history(key: String, timeout: FiniteDuration): F[List[KeyValueEntry]]
 }
+
+/** Result of a [[KeyValue.keysDetailed]] call.
+  *
+  * @param keys
+  *   the keys collected during warmup
+  * @param warmup
+  *   the warmup outcome; [[Warmup.Result.Success]] means `keys` is the complete set, anything else means it may be partial because warmup
+  *   did not finish draining pending messages
+  */
+final case class KeysResult(keys: List[String], warmup: Warmup.Result)
