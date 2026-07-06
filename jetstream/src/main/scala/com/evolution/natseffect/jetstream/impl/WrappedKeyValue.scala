@@ -123,7 +123,16 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
   override def keys(filter: String, timeout: FiniteDuration): F[List[String]] =
     keys(List(filter), timeout)
 
-  override def keys(filters: List[String], timeout: FiniteDuration): F[List[String]] = for {
+  override def keys(filters: List[String], timeout: FiniteDuration): F[List[String]] =
+    keysDetailed(filters, timeout).map(_.keys)
+
+  override def keysDetailed(timeout: FiniteDuration): F[KeysResult] =
+    keysDetailed(List(NatsConstants.GREATER_THAN), timeout)
+
+  override def keysDetailed(filter: String, timeout: FiniteDuration): F[KeysResult] =
+    keysDetailed(List(filter), timeout)
+
+  override def keysDetailed(filters: List[String], timeout: FiniteDuration): F[KeysResult] = for {
     occ <- prepareOrderedConsumer(
       filters,
       new OrderedConsumerConfiguration()
@@ -147,10 +156,10 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
 
     } yield sub.warmupLatch
 
-    _    <- runConsumer.use(warmupLatch => warmupLatch.get)
-    keys <- keysRef.get
+    warmup <- runConsumer.use(warmupLatch => warmupLatch.get)
+    keys   <- keysRef.get
 
-  } yield keys
+  } yield KeysResult(keys, warmup)
 
   override def consumeKeys(queueCapacity: Option[Int], timeout: FiniteDuration): Resource[F, QueueSource[F, Option[String]]] =
     consumeKeys(List(NatsConstants.GREATER_THAN), queueCapacity, timeout)

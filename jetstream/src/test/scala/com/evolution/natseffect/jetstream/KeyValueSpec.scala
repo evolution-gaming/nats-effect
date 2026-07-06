@@ -2,9 +2,10 @@ package com.evolution.natseffect.jetstream
 
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.implicits.toTraverseOps
 import weaver.GlobalRead
 
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 
 class KeyValueSpec(global: GlobalRead) extends JetStreamSpec(global) {
 
@@ -155,5 +156,30 @@ class KeyValueSpec(global: GlobalRead) extends JetStreamSpec(global) {
       expect.eql(new String(entry2.getValue), "8080") &&
       expect.eql(entry3.getKey, "config.host") &&
       expect.eql(new String(entry3.getValue), "127.0.0.1")
+  }
+
+  testResource("keysDetailed surfaces warmup completeness that keys() hides") { ctx =>
+    for {
+      (_, kv, _) <- setupKeyValueBucket(ctx)
+
+      _ <- (1 to 25).toList.traverse(i => kv.put(s"key.$i", s"v$i".getBytes())).void.toResource
+
+      // Generous timeout: warmup drains every pending message -> Success with the full key set.
+      complete <- kv.keysDetailed(5.seconds).toResource
+
+      // Zero timeout: warmup is cut short before draining -> Timeout with a partial (possibly empty) key set.
+      truncated <- kv.keysDetailed(Duration.Zero).toResource
+
+    } yield expect(complete.warmup match {
+      case Warmup.Result.Success(_) => true
+      case _                        => false
+    }) &&
+      expect.eql(complete.keys.size, 25) &&
+      expect(truncated.warmup match {
+        case Warmup.Result.Timeout(_) => true
+        case _                        => false
+      }) &&
+      // keys() alone would return `truncated.keys` with no signal it was cut short — that is the bug being fixed.
+      expect(truncated.keys.size <= complete.keys.size)
   }
 }
