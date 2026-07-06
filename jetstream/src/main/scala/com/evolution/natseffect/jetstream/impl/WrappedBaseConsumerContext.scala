@@ -2,7 +2,7 @@ package com.evolution.natseffect.jetstream.impl
 
 import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
-import com.evolution.natseffect.impl.{ConfiguringMessageHandler, JConnection, JavaWrapper}
+import com.evolution.natseffect.impl.{closeDispatcherSafe, ConfiguringMessageHandler, JConnection, JavaWrapper}
 import com.evolution.natseffect.jetstream.{BaseConsumerContext, JetStreamMessage, MessageSubscription}
 import io.nats.client.ConsumeOptions
 
@@ -30,7 +30,7 @@ private[natseffect] class WrappedBaseConsumerContext[F[_]: Async](
           )
         )
       } { d =>
-        Async[F].delay(connection.closeDispatcher(d))
+        closeDispatcherSafe(connection, d)
       }
 
       handler = CEJetStreamMessageHandler[F](ceDispatcher, messageHandler)
