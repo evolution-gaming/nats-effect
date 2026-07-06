@@ -1,8 +1,8 @@
 package com.evolution.natseffect.jetstream
 
-import cats.effect.implicits.{effectResourceOps, genTemporalOps_, monadCancelOps_}
+import cats.effect.implicits.{effectResourceOps, genTemporalOps_, monadCancelOps, monadCancelOps_}
 import cats.effect.kernel.Async
-import cats.effect.{Deferred, Resource}
+import cats.effect.{Deferred, Outcome, Ref, Resource}
 import cats.syntax.all.*
 import io.nats.client.ConsumeOptions
 
@@ -31,6 +31,17 @@ object Warmup {
       *   the time it took to complete warmup
       */
     case class Success(time: FiniteDuration) extends Result
+
+    /** Warmup failed - every message that was pending at subscription start was delivered, but the
+      * handler failed for at least one of them, so state built by the handler (e.g. a cache) may be
+      * incomplete.
+      *
+      * @param error
+      *   the first handler error encountered during warmup
+      * @param time
+      *   the time elapsed until warmup completed
+      */
+    case class Failed(error: Throwable, time: FiniteDuration) extends Result
 
     /** Warmup was canceled before completion.
       *
@@ -115,19 +126,32 @@ object Warmup {
 
     for {
       warmupResult        <- Deferred[F, Result].toResource
+      firstError          <- Ref.of[F, Option[Throwable]](None).toResource
       maybeCompleteWarmup1 = maybeCompleteWarmup(warmupResult)
 
       warmupStartTime <- Async[F].monotonic.toResource
       timeMeasured     = Async[F].monotonic.map(_ - warmupStartTime)
 
+      drainedResult = (firstError.get, timeMeasured).mapN { (error, time) =>
+        error.fold[Result](Result.Success(time))(Result.Failed(_, time))
+      }
+
+      // The completion check must run even when the handler fails: the message was still delivered,
+      // so it may have been the last pending one - otherwise a failing handler stalls warmup until
+      // the timeout. The handler error is recorded (first one wins) and re-raised by guaranteeCase,
+      // so it still propagates to the caller
       wrappedHandler = (jsMsg: JetStreamMessage[F]) =>
-        for {
-          _ <- handler(jsMsg)
-          _ <- maybeCompleteWarmup1(
-            jsMsg.metaData.map(_.pendingCount() == 0L),
-            timeMeasured.map(Result.Success(_))
-          )
-        } yield ()
+        handler(jsMsg)
+          .onError { case e => firstError.update(_.orElse(Some(e))) }
+          .guaranteeCase {
+            // On cancellation the background fiber below completes the latch with Canceled
+            case Outcome.Canceled() => Async[F].unit
+            case _ =>
+              maybeCompleteWarmup1(
+                jsMsg.metaData.map(_.pendingCount() == 0L),
+                drainedResult
+              )
+          }
 
       // Complete the latch in case of timeout or cancellation
       _ <- Async[F]

@@ -4,7 +4,7 @@ import cats.effect.implicits.monadCancelOps_
 import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
 import cats.syntax.all.*
-import com.evolution.natseffect.impl.{CEMessageHandler, ConfiguringMessageHandler}
+import com.evolution.natseffect.impl.{CEMessageHandler, CapturingMessageHandler, ConfiguringMessageHandler}
 import io.nats.client.MessageHandler
 
 /* Creates a version of the NatsDispatcher that:
@@ -24,8 +24,13 @@ object CatsBasedDispatcherFactory {
         new NatsDispatcher(conn, handlerForDispatcher) {
 
           private val defaultCeDispatcher: Dispatcher[F] = handlerForDispatcher match {
-            case ConfiguringMessageHandler(Some(customCeDispatcher), _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
-            case _                                                      => dispatcherForRequests
+            case ConfiguringMessageHandler(Some(customCeDispatcher), _, _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
+            case _                                                         => dispatcherForRequests
+          }
+
+          private val capturingHandler: Option[CapturingMessageHandler[F]] = handlerForDispatcher match {
+            case conf: ConfiguringMessageHandler[?] => conf.capturingHandler.map(_.asInstanceOf[CapturingMessageHandler[F]])
+            case _                                  => None
           }
 
           private val defaultMessageHandler: MessageHandler = handlerForDispatcher match {
@@ -53,7 +58,21 @@ object CatsBasedDispatcherFactory {
                       val fHandler = ceHandler.asInstanceOf[CEMessageHandler[F]]
                       fHandler.dispatcher -> fHandler.onMessageEffect(msg)
                     case other =>
-                      defaultCeDispatcher -> Async[F].delay(other.onMessage(msg))
+                      val invoked = capturingHandler match {
+                        // `other` is an opaque jnats wrapper (e.g. the JetStream handler performing
+                        // status handling, repull pacing, ordered-consumer checks) around the
+                        // registered capturing handler: invoke the full chain, then run the captured
+                        // user effect here so the recoverWith/guarantee below attach to it rather
+                        // than to its mere enqueueing - otherwise handler errors are silently
+                        // dropped and pending limits are never enforced
+                        case Some(capturing) =>
+                          Async[F].delay { other.onMessage(msg); capturing.takeCapturedEffect() }.flatMap {
+                            case Some(userEffect) => userEffect
+                            case None             => Async[F].unit
+                          }
+                        case None => Async[F].delay(other.onMessage(msg))
+                      }
+                      defaultCeDispatcher -> invoked
                   }
 
                   dispatcher.unsafeToFuture {

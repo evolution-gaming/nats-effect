@@ -9,10 +9,14 @@ import io.nats.client.MessageHandler
   *   CE Dispatcher to be used instead of the default one.
   * @param defaultMessageHandler
   *   Actual default message handler to be used if no custom handler is provided.
+  * @param capturingHandler
+  *   The CapturingMessageHandler this dispatcher delivers to (behind jnats wrappers), if any; lets the dispatcher collect the handler's
+  *   effect after invoking the opaque wrapper chain.
   */
 final case class ConfiguringMessageHandler[F[_]](
   customCeDispatcher: Option[Dispatcher[F]] = None,
-  defaultMessageHandler: Option[MessageHandler] = None
+  defaultMessageHandler: Option[MessageHandler] = None,
+  capturingHandler: Option[CapturingMessageHandler[F]] = None
 ) extends MessageHandler {
   override def onMessage(msg: JMessage): Unit =
     defaultMessageHandler.foreach(_.onMessage(msg))

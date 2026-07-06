@@ -21,19 +21,22 @@ private[natseffect] class WrappedBaseConsumerContext[F[_]: Async](
       // It is used by both NATS dispatcher, and CE message handler;
       ceDispatcher <- Dispatcher.sequential[F]
 
+      handler = CEJetStreamMessageHandler[F](ceDispatcher, messageHandler)
+
       natsDispatcher <- Resource.make {
         Async[F].delay(
           connection.createDispatcher(
             ConfiguringMessageHandler(
-              customCeDispatcher = Some(ceDispatcher)
+              customCeDispatcher = Some(ceDispatcher),
+              // Register the handler so the dispatcher can collect its effect from behind the
+              // jnats wrappers and run it with error reporting and accounting attached
+              capturingHandler = Some(handler)
             )
           )
         )
       } { d =>
         Async[F].delay(connection.closeDispatcher(d))
       }
-
-      handler = CEJetStreamMessageHandler[F](ceDispatcher, messageHandler)
 
       jMessageConsumer <- Resource.fromAutoCloseable {
         // No blocking requests in `wrapped.consume`, only internal publish via queueing, hence `delay`;
