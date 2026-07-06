@@ -10,8 +10,9 @@ import cats.effect.kernel.DeferredSource
   * <p>This is particularly useful for key-value watches where you want to: <ul> <li>Wait until the cache is populated with current values
   * <li>Know when historical replay is complete <li>Track initial synchronization time </ul>
   *
-  * <p>The warmupLatch will complete with a Result indicating: <ul> <li>Success: All pending messages were processed <li>Timeout: Warmup
-  * timeout was exceeded <li>Canceled: Subscription was canceled before warmup completed </ul>
+  * <p>The warmupLatch will complete with a Result indicating: <ul> <li>Success: All pending messages were processed <li>Failed: All
+  * pending messages were delivered, but the handler failed for at least one of them <li>Timeout: Warmup timeout was exceeded <li>Canceled:
+  * Subscription was canceled before warmup completed </ul>
   *
   * @param subscription
   *   the active message subscription
