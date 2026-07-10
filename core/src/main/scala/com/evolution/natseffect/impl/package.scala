@@ -2,7 +2,7 @@ package com.evolution.natseffect
 
 import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
-import cats.implicits.{catsSyntaxOptionId, none}
+import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxOptionId, none}
 import io.nats.client.ConnectionListener.Events
 import io.nats.client.Options.Builder
 import io.nats.client.impl.CatsBasedDispatcherFactory
@@ -27,6 +27,16 @@ package object impl {
   implicit private[natseffect] class CompletableFutureOps[T](cf: => CompletableFuture[T]) {
     def toF[F[_]: Async]: F[T] = Async[F].fromCompletableFuture(Async[F].delay(cf))
   }
+
+  /** Closes a jnats dispatcher, treating an already-closed connection or dispatcher as a no-op:
+    * jnats throws IllegalStateException ("Connection is Closed") or IllegalArgumentException
+    * ("Dispatcher is already closed.") in those states, and a resource finalizer failing on them
+    * has nothing to release anyway - it would only mask the primary error in the release chain.
+    */
+  private[natseffect] def closeDispatcherSafe[F[_]: Async](connection: JConnection, dispatcher: JDispatcher): F[Unit] =
+    Async[F].delay(connection.closeDispatcher(dispatcher)).recover {
+      case _: IllegalStateException | _: IllegalArgumentException => ()
+    }
 
   implicit private[natseffect] class ConnectionListenerOps[F[_]](connectionListener: ConnectionListener[F]) {
     def asJava(options: Options[F])(implicit F: Async[F]): Resource[F, JConnectionListener] =

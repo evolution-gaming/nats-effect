@@ -3,6 +3,7 @@ package com.evolution.natseffect
 import cats.effect.implicits.genTemporalOps
 import cats.effect.{Deferred, IO}
 import cats.implicits.{catsSyntaxApplicativeError, toFunctorOps}
+import com.evolution.natseffect.impl.{JavaWrapper, JConnection}
 import io.nats.client.Connection.Status
 import io.nats.client.ConnectionListener.Events
 import weaver.GlobalRead
@@ -46,6 +47,21 @@ class ConnectionSpec(global: GlobalRead) extends NatsSpec(global) {
         case _: TimeoutException => true
       }
     } yield expect(failed)
+  }
+
+  testResource("tolerate dispatcher release after the connection is already closed") { ctx =>
+    for {
+      connection <- Nats.connect(ctx.url())
+      // Close the underlying connection while the dispatcher is still allocated, then release it:
+      // the finalizer must treat "Connection is Closed" as a no-op instead of failing the chain
+      released <- connection
+        .createDispatcher()
+        .allocated
+        .flatMap { case (_, release) =>
+          IO(connection.asInstanceOf[JavaWrapper[JConnection]].asJava.close()).flatMap(_ => release.attempt)
+        }
+        .toResource
+    } yield expect(released.isRight)
   }
 
   testResource("ConnectionListener receives events") { ctx =>

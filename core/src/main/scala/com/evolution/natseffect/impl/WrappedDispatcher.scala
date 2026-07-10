@@ -52,7 +52,7 @@ private[natseffect] object WrappedDispatcher {
   def make[F[_]: Async](connection: JConnection): Resource[F, Dispatcher[F]] =
     for {
       catsDispatcher <- CEDispatcher.sequential
-      natsDispatcher <- Resource.make(Async[F].delay(connection.createDispatcher()))(d => Async[F].delay(connection.closeDispatcher(d)))
+      natsDispatcher <- Resource.make(Async[F].delay(connection.createDispatcher()))(d => closeDispatcherSafe(connection, d))
       subscriptions  <- Ref.of[F, Map[String, Set[WrappedSubscription[F]]]](Map.empty).toResource
       result          = new WrappedDispatcher[F](natsDispatcher, catsDispatcher, subscriptions)
       _              <- Resource.make(Applicative[F].unit)(_ => result.close)
