@@ -36,8 +36,10 @@ private[natseffect] class WrappedBaseConsumerContext[F[_]: Async](
       handler = CEJetStreamMessageHandler[F](ceDispatcher, messageHandler)
 
       jMessageConsumer <- Resource.fromAutoCloseable {
-        // No blocking requests in `wrapped.consume`, only internal publish via queueing, hence `delay`;
-        Async[F].delay(wrapped.consume(consumeOptions, natsDispatcher, handler))
+        // `wrapped.consume` creates the server-side consumer via a synchronous CONSUMER.CREATE
+        // request/reply (NatsMessageConsumer -> doSub -> subscribe -> _createConsumer), which can wait
+        // up to the JetStream request timeout on a busy connection, hence `blocking`;
+        Async[F].blocking(wrapped.consume(consumeOptions, natsDispatcher, handler))
       }
 
     } yield new WrappedMessageConsumer[F](jMessageConsumer)
