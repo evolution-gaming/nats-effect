@@ -3,7 +3,7 @@ package com.evolution.natseffect
 import io.nats.client.Options.*
 import io.nats.client.impl.SSLContextFactory
 import io.nats.client.support.SSLUtils.DEFAULT_TLS_ALGORITHM
-import io.nats.client.{AuthHandler, Consumer as JConsumer, ReadListener, ReconnectDelayHandler, ServerPool, TimeTraceLogger}
+import io.nats.client.{AuthHandler, Consumer, ReadListener, ReconnectDelayHandler, ServerPool, TimeTraceLogger}
 
 import java.net.Proxy
 import java.util.concurrent.{ExecutorService, ThreadFactory}
@@ -78,8 +78,8 @@ final class Options[F[_]] private (
   val subjectValidationType: SubjectValidationType = SubjectValidationType.Lenient,
   val connectExecutor: Option[ExecutorService] = None,
   val callbackExecutor: Option[ExecutorService] = None,
-  val pendingMessageLimit: Long = JConsumer.DEFAULT_MAX_MESSAGES,
-  val pendingByteLimit: Long = JConsumer.DEFAULT_MAX_BYTES
+  val pendingMessageLimit: Long = Consumer.DEFAULT_MAX_MESSAGES,
+  val pendingByteLimit: Long = Consumer.DEFAULT_MAX_BYTES
 ) {
 
   private def copy(
