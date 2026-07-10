@@ -16,12 +16,15 @@ import io.nats.client.MessageHandler
  * This way the callbacks are always executed on separate threads managed by CE
  */
 object CatsBasedDispatcherFactory {
-  def make[F[_]: Async]: Resource[F, DispatcherFactory] =
+  def make[F[_]: Async](
+    pendingMessageLimit: Long,
+    pendingByteLimit: Long
+  ): Resource[F, DispatcherFactory] =
     for {
       dispatcherForRequests <- Dispatcher.parallel
     } yield new DispatcherFactory {
-      override def createDispatcher(conn: NatsConnection, handlerForDispatcher: MessageHandler): NatsDispatcher =
-        new NatsDispatcher(conn, handlerForDispatcher) {
+      override def createDispatcher(conn: NatsConnection, handlerForDispatcher: MessageHandler): NatsDispatcher = {
+        val dispatcher = new NatsDispatcher(conn, handlerForDispatcher) {
 
           private val defaultCeDispatcher: Dispatcher[F] = handlerForDispatcher match {
             case ConfiguringMessageHandler(Some(customCeDispatcher), _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
@@ -82,5 +85,8 @@ object CatsBasedDispatcherFactory {
 
           override def getMessageQueue: ConsumerMessageQueue = incomingQueue
         }
+        dispatcher.setPendingLimits(pendingMessageLimit, pendingByteLimit)
+        dispatcher
+      }
     }
 }
