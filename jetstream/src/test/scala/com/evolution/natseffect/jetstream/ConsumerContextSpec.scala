@@ -6,6 +6,7 @@ import io.nats.client.api.{AckPolicy, ConsumerConfiguration}
 import weaver.GlobalRead
 
 import java.time.Duration
+import scala.concurrent.duration.DurationInt
 
 class ConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(global) {
 
@@ -64,10 +65,11 @@ class ConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(global) {
       meta4 <- msg4.metaData.toResource
       data4  = new String(msg4.data.getOrElse(Array.empty[Byte]))
 
-      // Receive redelivered message
+      // Receive redelivered message; ackSync waits for server confirmation so the
+      // consumer info fetched below is guaranteed to reflect this ack
       msg5  <- queue.take.toResource
       meta5 <- msg5.metaData.toResource
-      _     <- msg5.ack.toResource
+      _     <- msg5.ackSync(5.seconds).toResource
       data5  = new String(msg5.data.getOrElse(Array.empty[Byte]))
 
       // Get final consumer info
