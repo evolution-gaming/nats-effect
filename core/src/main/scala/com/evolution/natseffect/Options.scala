@@ -3,7 +3,7 @@ package com.evolution.natseffect
 import io.nats.client.Options.*
 import io.nats.client.impl.SSLContextFactory
 import io.nats.client.support.SSLUtils.DEFAULT_TLS_ALGORITHM
-import io.nats.client.{AuthHandler, Consumer, ReadListener, ReconnectDelayHandler, ServerPool, TimeTraceLogger}
+import io.nats.client.{AuthHandler, ReadListener, ReconnectDelayHandler, ServerPool, TimeTraceLogger}
 
 import java.net.Proxy
 import java.util.concurrent.{ExecutorService, ThreadFactory}
@@ -77,9 +77,7 @@ final class Options[F[_]] private (
   val sendBufferSize: Int = -1,
   val subjectValidationType: SubjectValidationType = SubjectValidationType.Lenient,
   val connectExecutor: Option[ExecutorService] = None,
-  val callbackExecutor: Option[ExecutorService] = None,
-  val pendingMessageLimit: Long = Consumer.DEFAULT_MAX_MESSAGES,
-  val pendingByteLimit: Long = Consumer.DEFAULT_MAX_BYTES
+  val callbackExecutor: Option[ExecutorService] = None
 ) {
 
   private def copy(
@@ -148,9 +146,7 @@ final class Options[F[_]] private (
     sendBufferSize: Int = sendBufferSize,
     subjectValidationType: SubjectValidationType = subjectValidationType,
     connectExecutor: Option[ExecutorService] = connectExecutor,
-    callbackExecutor: Option[ExecutorService] = callbackExecutor,
-    pendingMessageLimit: Long = pendingMessageLimit,
-    pendingByteLimit: Long = pendingByteLimit
+    callbackExecutor: Option[ExecutorService] = callbackExecutor
   ): Options[F] = new Options(
     natsServerUris,
     reconnectOnConnect,
@@ -217,9 +213,7 @@ final class Options[F[_]] private (
     sendBufferSize,
     subjectValidationType,
     connectExecutor,
-    callbackExecutor,
-    pendingMessageLimit,
-    pendingByteLimit
+    callbackExecutor
   )
 
   def withNatsServerUris(natsServerUris: Seq[String]): Options[F] = copy(natsServerUris = natsServerUris)
@@ -358,13 +352,6 @@ final class Options[F[_]] private (
   def withConnectExecutor(connectExecutor: Option[ExecutorService]): Options[F] = copy(connectExecutor = connectExecutor)
 
   def withCallbackExecutor(callbackExecutor: Option[ExecutorService]): Options[F] = copy(callbackExecutor = callbackExecutor)
-
-  /** Sets the pending limits applied to every dispatcher created on this connection. When a dispatcher's queue of undelivered messages
-    * exceeds either limit, further incoming messages are dropped and reported as a slow consumer - which, for ordered consumers, causes
-    * sequence gaps and consumer re-creation. Zero or a negative value disables that limit.
-    */
-  def withPendingLimits(pendingMessageLimit: Long, pendingByteLimit: Long): Options[F] =
-    copy(pendingMessageLimit = pendingMessageLimit, pendingByteLimit = pendingByteLimit)
 
 }
 object Options {
