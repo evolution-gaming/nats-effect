@@ -72,7 +72,7 @@ package object impl {
         errorListener       <- errorListener.fold(Resource.pure[F, Option[JErrorListener]](none))(_.asJava(options).map(_.some))
         connectionListener  <- connectionListener.fold(Resource.pure[F, Option[JConnectionListener]](none))(_.asJava(options).map(_.some))
         statisticsCollector <- statisticsCollector.fold(Resource.pure[F, Option[JStatisticsCollector]](none))(_.asJava.map(_.some))
-        dispatcherFactory   <- CatsBasedDispatcherFactory.make
+        dispatcherFactory   <- CatsBasedDispatcherFactory.make(pendingMessageLimit, pendingByteLimit)
       } yield {
         val builder = new Builder()
           .servers(natsServerUris.toArray)

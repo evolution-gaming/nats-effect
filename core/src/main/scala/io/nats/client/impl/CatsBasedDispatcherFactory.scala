@@ -5,7 +5,7 @@ import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
 import cats.syntax.all.*
 import com.evolution.natseffect.impl.{CEMessageHandler, ConfiguringMessageHandler}
-import io.nats.client.MessageHandler
+import io.nats.client.{Consumer, MessageHandler}
 
 /* Creates a version of the NatsDispatcher that:
  * - removes the blocking queue used by the default dispatcher
@@ -16,12 +16,15 @@ import io.nats.client.MessageHandler
  * This way the callbacks are always executed on separate threads managed by CE
  */
 object CatsBasedDispatcherFactory {
-  def make[F[_]: Async]: Resource[F, DispatcherFactory] =
+  def make[F[_]: Async](
+    pendingMessageLimit: Long = Consumer.DEFAULT_MAX_MESSAGES,
+    pendingByteLimit: Long = Consumer.DEFAULT_MAX_BYTES
+  ): Resource[F, DispatcherFactory] =
     for {
       dispatcherForRequests <- Dispatcher.parallel
     } yield new DispatcherFactory {
-      override def createDispatcher(conn: NatsConnection, handlerForDispatcher: MessageHandler): NatsDispatcher =
-        new NatsDispatcher(conn, handlerForDispatcher) {
+      override def createDispatcher(conn: NatsConnection, handlerForDispatcher: MessageHandler): NatsDispatcher = {
+        val dispatcher = new NatsDispatcher(conn, handlerForDispatcher) {
 
           private val defaultCeDispatcher: Dispatcher[F] = handlerForDispatcher match {
             case ConfiguringMessageHandler(Some(customCeDispatcher), _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
@@ -82,5 +85,8 @@ object CatsBasedDispatcherFactory {
 
           override def getMessageQueue: ConsumerMessageQueue = incomingQueue
         }
+        dispatcher.setPendingLimits(pendingMessageLimit, pendingByteLimit)
+        dispatcher
+      }
     }
 }
