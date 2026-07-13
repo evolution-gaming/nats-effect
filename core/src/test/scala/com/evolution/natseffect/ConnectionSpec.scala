@@ -57,8 +57,9 @@ class ConnectionSpec(global: GlobalRead) extends NatsSpec(global) {
       released <- connection
         .createDispatcher()
         .allocated
-        .flatMap { case (_, release) =>
-          IO(connection.asInstanceOf[JavaWrapper[JConnection]].asJava.close()).flatMap(_ => release.attempt)
+        .flatMap {
+          case (_, release) =>
+            IO(connection.asInstanceOf[JavaWrapper[JConnection]].asJava.close()).flatMap(_ => release.attempt)
         }
         .toResource
     } yield expect(released.isRight)
