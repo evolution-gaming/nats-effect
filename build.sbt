@@ -50,7 +50,7 @@ lazy val root = project
     addCommandAlias("check", "all scalafmtCheckAll scalafmtSbtCheck"),
     addCommandAlias("build", "+all compile test")
   )
-  .aggregate(core, jetstream, metrics, logback)
+  .aggregate(core, jetstream, metrics, logback, loadtest)
 
 lazy val core = project.settings(commonSettings).settings(Test / testFrameworks += TestFramework("weaver.framework.CatsEffect"))
 
@@ -59,3 +59,6 @@ lazy val jetstream = project.settings(commonSettings).dependsOn(core % "compile-
 lazy val metrics = project.settings(commonSettings).dependsOn(core)
 
 lazy val logback = project.settings(commonSettings).dependsOn(core)
+
+// compile->test so the loadtest can reuse the embedded-server boot helper from jetstream's test sources
+lazy val loadtest = project.settings(commonSettings).dependsOn(jetstream % "compile->compile;compile->test")

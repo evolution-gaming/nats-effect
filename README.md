@@ -388,3 +388,30 @@ def establishConnection(collectorRegistry: CollectorRegistry[IO]): Resource[IO, 
 
 You can reuse the same `StatisticsCollector.Multicluster` instance for multiple NATS connections.
 Different connections are differentiated by a cluster label, which you specify when calling the `forCluster` method.
+
+## Load testing
+
+The `loadtest` module contains a runnable harness that reproduces the KV warm-up overload
+(simultaneous watchers against a large bucket on a constrained compute pool) and measures
+consumption: warm-up outcomes, client-side drops, slow-consumer events, consumer recreations,
+liveness lag and peak heap. Results are recorded in [docs/loadtest-results.md](docs/loadtest-results.md).
+
+Run a scenario (boots an embedded `nats-server`, no external setup needed):
+
+```bash
+sbt 'loadtest/run scenario=baseline'    # jnats default pending limits
+sbt 'loadtest/run scenario=unlimited'   # Options.withPendingLimits(0, 0)
+```
+
+All parameters are optional `key=value` arguments with the incident-reproducing defaults:
+
+```bash
+sbt 'loadtest/run scenario=baseline watchers=20 keys=18000 valueSize=12288 \
+  warmupTimeoutSec=60 spinMicros=5 computeThreads=2 port=4331 timeoutSec=360'
+```
+
+`computeThreads` restricts the cats-effect compute pool (small pools mimic pod CPU limits and are
+required to reproduce the pathology). `timeoutSec` is a global watchdog: a run that does not finish
+in time prints a thread dump and exits with code 2. Exit codes: 0 = finished (see the verdict in
+the report), 1 = bad arguments, 2 = watchdog kill, 3 = crash. Each run prints a human-readable
+report plus a machine-parseable `RESULT_JSON` line.
