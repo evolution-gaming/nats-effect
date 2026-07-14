@@ -22,13 +22,19 @@ private[natseffect] class WrappedBaseConsumerContext[F[_]: Async](
       ceDispatcher <- Dispatcher.sequential[F]
 
       natsDispatcher <- Resource.make {
-        Async[F].delay(
-          connection.createDispatcher(
+        Async[F].delay {
+          val dispatcher = connection.createDispatcher(
             ConfiguringMessageHandler(
               customCeDispatcher = Some(ceDispatcher)
             )
           )
-        )
+          // We assume JetStream consumers must not drop messages as slow consumers: for ordered consumers that
+          // causes sequence gaps and consumer re-creation. The tradeoff is possible memory exhaustion if consumers
+          // are genuinely slow, as the queue of messages then grows without bound.
+          // This is a temporary solution until we find a better one (e.g., a proper back-pressure implementation).
+          dispatcher.setPendingLimits(0L, 0L)
+          dispatcher
+        }
       } { d =>
         closeDispatcherSafe(connection, d)
       }
