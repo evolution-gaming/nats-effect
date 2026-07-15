@@ -82,8 +82,10 @@ empty-window accounting and the consumer liveness probe after 2 consecutive idle
 -> immediate resubscribe continuing after the last delivered stream sequence; consumer deleted
 (error status or failed liveness probe) -> resubscribe; subscription inactive -> resubscribe
 after a short delay; handler failure -> reported, processing continues (matches the callback
-engine). Acquisition of `consume` blocks (cancelably) until the first subscribe succeeds;
-subscribe failures take the same backoff path as later ones.
+engine). Acquisition of `consume` blocks (cancelably) until the first subscribe succeeds, or
+fails with the last error after 5 attempts (~1.5 s of backoff) - like the callback engine on
+permanent configuration errors, while still absorbing transient ones; after the first success,
+resubscribes retry indefinitely.
 
 `stop` lets the in-flight message finish and the loop exit at the next window boundary; `close`
 is prompt while waiting but also lets an in-flight message finish (the step is masked). A pull

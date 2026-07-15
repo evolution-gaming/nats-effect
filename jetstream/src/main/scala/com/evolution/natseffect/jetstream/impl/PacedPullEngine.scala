@@ -25,6 +25,11 @@ private[natseffect] object PacedPullEngine {
   private val InitialRetryDelay = 100.millis
   private val MaxRetryDelay     = 5.seconds
 
+  /** Subscribe failures before the first success fail acquisition with the last error (like the callback engine, which fails on the first
+    * one); the budget absorbs ~1.5s of transient conditions. After the first success, resubscribes retry indefinitely.
+    */
+  private val FirstSubscribeAttempts = 5
+
   /** A pull terminus this long before the window deadline (e.g. the consumer is gone) is guarded with a short sleep when nothing was
     * delivered, so terminus storms cannot re-pull in a hot loop.
     */
@@ -148,16 +153,16 @@ private[natseffect] object PacedPullEngine {
     listener: PacedConsumerListener[F]
   ): Resource[F, MessageSubscription[F]] =
     for {
-      firstSubscribe <- Resource.eval(Deferred[F, Ref[F, SubscriptionState]])
+      firstSubscribe <- Resource.eval(Deferred[F, Either[Throwable, Ref[F, SubscriptionState]]])
       // The getCachedConsumerInfo cache, owned by the subscription handle alone - the loop never touches it
       lastInfo <- Resource.eval(Ref.of[F, Option[JConsumerInfo]](None))
       fiber    <- Resource.make(run(subscribe, consumerInfo, config, reportError, handler, listener, firstSubscribe).start)(_.cancel)
 
-      // Acquisition completes once the first subscribe succeeds, with the subscription state as
-      // the handshake's payload; failures are retried with backoff like any later ones, so this
-      // wait is unbounded but cancelable (a permanently broken subscribe blocks acquisition
-      // instead of failing it - config errors mostly fail earlier, e.g. at the stream-context lookup)
-      state <- Resource.eval(firstSubscribe.get)
+      // Acquisition completes once the first subscribe succeeds - with the subscription state as
+      // the handshake's payload - or fails with the last error after FirstSubscribeAttempts
+      // failures. The wait is cancelable; transient conditions are absorbed by the backoff, and a
+      // permanently broken subscribe fails the consume instead of hanging it
+      state <- Resource.eval(firstSubscribe.get.flatMap(_.liftTo[F]))
     } yield new PacedMessageSubscription[F](consumerInfo, state, lastInfo, fiber.cancel)
 
   private def run[F[_]](
@@ -167,7 +172,7 @@ private[natseffect] object PacedPullEngine {
     reportError: Throwable => F[Unit],
     handler: JetStreamMessage[F] => F[Unit],
     listener: PacedConsumerListener[F],
-    firstSubscribe: Deferred[F, Ref[F, SubscriptionState]]
+    firstSubscribe: Deferred[F, Either[Throwable, Ref[F, SubscriptionState]]]
   )(implicit F: Async[F]): F[Unit] = {
 
     // Loop structure, outermost first:
@@ -220,11 +225,11 @@ private[natseffect] object PacedPullEngine {
       }
 
     // Stop can only arrive through the subscription handle, and the handle exists only once the
-    // handshake completed - an incomplete Deferred is itself proof that no stop was requested
+    // handshake completed successfully - anything else is proof that no stop was requested
     def stopRequested: F[Boolean] =
       firstSubscribe.tryGet.flatMap {
-        case Some(state) => state.get.map(_.stopRequested)
-        case None        => F.pure(false)
+        case Some(Right(state)) => state.get.map(_.stopRequested)
+        case _                  => F.pure(false)
       }
 
     // The first establishment creates the state and completes the acquisition handshake with it;
@@ -232,17 +237,17 @@ private[natseffect] object PacedPullEngine {
     // subscription was being established survives
     def register(active: ActiveSubscription[F]): F[Ref[F, SubscriptionState]] =
       firstSubscribe.tryGet.flatMap {
-        case Some(state) =>
+        case Some(Right(state)) =>
           state.update(_.copy(consumerName = active.consumerName)) *>
             guarded(listener.subscribed(active.consumerName, resubscribed = true)).as(state)
-        case None =>
+        case _ =>
           Ref.of[F, SubscriptionState](SubscriptionState(active.consumerName, Phase.Running)).flatTap { state =>
-            firstSubscribe.complete(state).void *>
+            firstSubscribe.complete(Right(state)).void *>
               guarded(listener.subscribed(active.consumerName, resubscribed = false))
           }
       }
 
-    def subscribeLoop(retryDelay: FiniteDuration): F[Unit] =
+    def subscribeLoop(retryDelay: FiniteDuration, failedAttempts: Int): F[Unit] =
       stopRequested.flatMap { stopped =>
         if (stopped) F.unit
         else
@@ -256,12 +261,20 @@ private[natseffect] object PacedPullEngine {
                 // subscription waits a beat so a flapping connection cannot drive a tight
                 // CONSUMER.CREATE loop. Ordered subscribes continue from the last delivered sequence
                 state.get.flatMap(s => guarded(listener.resubscribing(s.consumerName, reason))) *>
-                  F.sleep(after) *> subscribeLoop(InitialRetryDelay)
+                  F.sleep(after) *> subscribeLoop(InitialRetryDelay, failedAttempts = 0)
               case Left(e) =>
-                // Status errors, transport failures, and the first subscribe alike: keep retrying
-                // with progressive backoff - acquisition simply waits until a subscribe succeeds
-                reportError(e) *> guarded(listener.failed(e, retryDelay)) *>
-                  F.sleep(retryDelay) *> subscribeLoop((retryDelay * 2).min(MaxRetryDelay))
+                val failures = failedAttempts + 1
+                firstSubscribe.tryGet.flatMap {
+                  case None if failures >= FirstSubscribeAttempts =>
+                    // The consume never got a subscription: fail acquisition with the last error
+                    // and end the loop - the handle that could ask for anything will never exist
+                    reportError(e) *> firstSubscribe.complete(Left(e)).void
+                  case _ =>
+                    // Status errors, transport failures, and the first subscribes alike: keep
+                    // retrying with progressive backoff (only pre-acquisition attempts are budgeted)
+                    reportError(e) *> guarded(listener.failed(e, retryDelay)) *>
+                      F.sleep(retryDelay) *> subscribeLoop((retryDelay * 2).min(MaxRetryDelay), failures)
+                }
             }
       }
 
@@ -357,10 +370,11 @@ private[natseffect] object PacedPullEngine {
       }
     }
 
-    F.guaranteeCase(subscribeLoop(InitialRetryDelay)) {
+    F.guaranteeCase(subscribeLoop(InitialRetryDelay, failedAttempts = 0)) {
       case Outcome.Succeeded(_) =>
-        // A graceful exit implies an observed stop, which implies a completed handshake
-        firstSubscribe.tryGet.flatMap(_.traverse_(_.update(_.copy(phase = Phase.Finished))))
+        // A graceful exit after a stop implies a successful handshake; an exhausted first-subscribe
+        // budget also exits gracefully but has no state to finish
+        firstSubscribe.tryGet.flatMap(_.flatMap(_.toOption).traverse_(_.update(_.copy(phase = Phase.Finished))))
       case _ => F.unit
     }
   }

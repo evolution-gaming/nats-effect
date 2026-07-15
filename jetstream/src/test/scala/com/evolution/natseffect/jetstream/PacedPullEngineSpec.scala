@@ -226,6 +226,17 @@ object PacedPullEngineSpec extends SimpleIOSuite {
     } yield result
   }
 
+  test("acquisition fails with the last error after the first-subscribe retry budget") {
+    for {
+      subscribes <- Ref.of[IO, Int](0)
+      alwaysFailing = Resource.eval[IO, ActiveSubscription[IO]](
+        subscribes.updateAndGet(_ + 1).flatMap(n => IO.raiseError(new RuntimeException(s"subscribe failed $n")))
+      )
+      result   <- run(alwaysFailing, _ => IO.unit).use_.attempt
+      attempts <- subscribes.get
+    } yield expect(result.left.exists(_.getMessage == "subscribe failed 5")) && expect.eql(attempts, 5)
+  }
+
   test("a throwing listener does not affect consumption and is reported") {
     val throwingListener = new PacedConsumerListener[IO] {
       private def boom: IO[Unit] = IO.raiseError(new RuntimeException("listener failure"))
