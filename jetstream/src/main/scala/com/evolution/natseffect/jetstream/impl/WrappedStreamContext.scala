@@ -1,17 +1,25 @@
 package com.evolution.natseffect.jetstream.impl
 
 import cats.effect.Async
-import cats.implicits.toFunctorOps
+import cats.implicits.{toFlatMapOps, toFunctorOps}
 import com.evolution.natseffect.impl.{JConnection, JavaWrapper}
-import com.evolution.natseffect.jetstream.{ConsumerContext, ConsumerInfo, OrderedConsumerContext, StreamContext, StreamInfo}
-import io.nats.client.PurgeOptions
+import com.evolution.natseffect.jetstream.{
+  ConsumerContext,
+  ConsumerInfo,
+  OrderedConsumerContext,
+  PacedConsumerListener,
+  StreamContext,
+  StreamInfo
+}
+import io.nats.client.{JetStreamOptions, PurgeOptions}
 import io.nats.client.api.{ConsumerConfiguration, MessageInfo, OrderedConsumerConfiguration, PurgeResponse, StreamInfoOptions}
 
 import scala.jdk.CollectionConverters.*
 
 private[natseffect] class WrappedStreamContext[F[_]: Async](
   wrapped: JStreamContext,
-  connection: JConnection
+  connection: JConnection,
+  jetStreamOptions: Option[JetStreamOptions]
 ) extends StreamContext[F]
     with JavaWrapper[JStreamContext] {
 
@@ -37,6 +45,28 @@ private[natseffect] class WrappedStreamContext[F[_]: Async](
     Async[F]
       .delay(wrapped.createOrderedConsumer(config))
       .map(new WrappedOrderedConsumerContext[F](_, connection, config))
+
+  override def createOrderedPacedConsumer(config: OrderedConsumerConfiguration): F[OrderedConsumerContext[F]] =
+    createOrderedPacedConsumer(config, PacedConsumerListener.noop[F])
+
+  override def createOrderedPacedConsumer(
+    config: OrderedConsumerConfiguration,
+    listener: PacedConsumerListener[F]
+  ): F[OrderedConsumerContext[F]] =
+    Async[F]
+      .delay((connection.jetStream(jetStreamOptions.orNull), connection.jetStreamManagement(jetStreamOptions.orNull)))
+      .flatMap { case (js, jsm) => PacedConsumerContexts.ordered[F](js, jsm, wrapped.getStreamName, config, connection, listener) }
+
+  override def getPacedConsumerContext(consumerName: String): F[ConsumerContext[F]] =
+    getPacedConsumerContext(consumerName, PacedConsumerListener.noop[F])
+
+  override def getPacedConsumerContext(consumerName: String, listener: PacedConsumerListener[F]): F[ConsumerContext[F]] =
+    for {
+      (js, jsm) <- Async[F].delay((connection.jetStream(jetStreamOptions.orNull), connection.jetStreamManagement(jetStreamOptions.orNull)))
+      // Existence check for parity with getConsumerContext, which looks the consumer up server-side;
+      // the value is intentionally unused - only "does it exist" matters here
+      _ <- Async[F].blocking(jsm.getConsumerInfo(wrapped.getStreamName, consumerName)).void
+    } yield PacedConsumerContexts.named[F](js, jsm, wrapped.getStreamName, consumerName, connection, listener)
 
   override def deleteConsumer(consumerName: String): F[Boolean] =
     Async[F].blocking(wrapped.deleteConsumer(consumerName))

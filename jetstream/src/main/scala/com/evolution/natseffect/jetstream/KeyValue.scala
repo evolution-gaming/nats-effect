@@ -269,6 +269,77 @@ trait KeyValue[F[_]] {
     metaDataOnly: Boolean = false
   ): Resource[F, SubscriptionWithWarmup[F]]
 
+  /** Watch all keys in the bucket using the processing-paced pull engine.
+    *
+    * <p>Alternative to [[watchAll]] with identical semantics: the underlying consumer pulls messages only as the handler processes them, so
+    * large buckets and slow handlers cannot cause client-side message drops or ordered-consumer recreation storms. Experimental; naming is
+    * provisional.
+    *
+    * @param watchMode
+    *   watch mode (new only, include history, updates only)
+    * @param handler
+    *   function to handle each key change
+    * @param warmupTimeout
+    *   timeout for initial warmup
+    * @param metaDataOnly
+    *   if true, only metadata is included (no value)
+    * @return
+    *   Resource managing the watch subscription
+    */
+  def watchAllPaced(
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean = false
+  ): Resource[F, SubscriptionWithWarmup[F]]
+
+  /** Variant of [[watchAllPaced(watchMode:*]] with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
+    */
+  def watchAllPaced(
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean,
+    listener: PacedConsumerListener[F]
+  ): Resource[F, SubscriptionWithWarmup[F]]
+
+  /** Watch specific keys for changes using the processing-paced pull engine.
+    *
+    * <p>Alternative to [[watch]] with identical semantics; see [[watchAllPaced]] for the engine differences. Experimental; naming is
+    * provisional.
+    *
+    * @param keys
+    *   list of keys to watch (supports wildcards)
+    * @param watchMode
+    *   watch mode (new only, include history, updates only)
+    * @param handler
+    *   function to handle each key change
+    * @param warmupTimeout
+    *   timeout for initial warmup
+    * @param metaDataOnly
+    *   if true, only metadata is included (no value)
+    * @return
+    *   Resource managing the watch subscription
+    */
+  def watchPaced(
+    keys: List[String],
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean = false
+  ): Resource[F, SubscriptionWithWarmup[F]]
+
+  /** Variant of [[watchPaced(keys:*]] with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
+    */
+  def watchPaced(
+    keys: List[String],
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean,
+    listener: PacedConsumerListener[F]
+  ): Resource[F, SubscriptionWithWarmup[F]]
+
   /** Get all keys in the bucket.
     *
     * @param timeout

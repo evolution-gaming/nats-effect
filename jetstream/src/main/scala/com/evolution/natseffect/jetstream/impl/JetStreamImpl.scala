@@ -21,7 +21,8 @@ private[natseffect] class JetStreamImpl[F[_]: Async](wrappedConnection: WrappedC
     Async[F].blocking {
       new WrappedStreamContext[F](
         wrappedConnection.asJava.getStreamContext(streamName, jetStreamOptions.orNull),
-        wrappedConnection.asJava
+        wrappedConnection.asJava,
+        jetStreamOptions
       )
     }
 

@@ -95,12 +95,56 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
     handler: KeyValueEntry => F[Unit],
     warmupTimeout: FiniteDuration,
     metaDataOnly: Boolean
-  ): Resource[F, SubscriptionWithWarmup[F]] = {
+  ): Resource[F, SubscriptionWithWarmup[F]] =
+    for {
+      occ <- prepareOrderedConsumer(keys, watchConsumerConfig(watchMode, metaDataOnly)).toResource
+      sub <- occ.consumeWithWarmup(jsMsg => handler(new KeyValueEntry(jsMsg.asJava)), warmupTimeout)
+    } yield sub
 
+  override def watchAllPaced(
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean
+  ): Resource[F, SubscriptionWithWarmup[F]] =
+    watchPaced(List(NatsConstants.GREATER_THAN), watchMode, handler, warmupTimeout, metaDataOnly)
+
+  override def watchAllPaced(
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean,
+    listener: PacedConsumerListener[F]
+  ): Resource[F, SubscriptionWithWarmup[F]] =
+    watchPaced(List(NatsConstants.GREATER_THAN), watchMode, handler, warmupTimeout, metaDataOnly, listener)
+
+  override def watchPaced(
+    keys: List[String],
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean
+  ): Resource[F, SubscriptionWithWarmup[F]] =
+    watchPaced(keys, watchMode, handler, warmupTimeout, metaDataOnly, PacedConsumerListener.noop[F])
+
+  override def watchPaced(
+    keys: List[String],
+    watchMode: KvWatchMode,
+    handler: KeyValueEntry => F[Unit],
+    warmupTimeout: FiniteDuration,
+    metaDataOnly: Boolean,
+    listener: PacedConsumerListener[F]
+  ): Resource[F, SubscriptionWithWarmup[F]] =
+    for {
+      occ <- prepareOrderedPacedConsumer(keys, watchConsumerConfig(watchMode, metaDataOnly), listener).toResource
+      sub <- occ.consumeWithWarmup(jsMsg => handler(new KeyValueEntry(jsMsg.asJava)), warmupTimeout)
+    } yield sub
+
+  private def watchConsumerConfig(watchMode: KvWatchMode, metaDataOnly: Boolean): OrderedConsumerConfiguration = {
     val orderedConsumerConfig = new OrderedConsumerConfiguration()
       .headersOnly(metaDataOnly)
 
-    val withWatchMode = watchMode match {
+    watchMode match {
       case KvWatchMode.LatestValues =>
         orderedConsumerConfig.deliverPolicy(DeliverPolicy.LastPerSubject)
       case KvWatchMode.AllHistory =>
@@ -110,11 +154,6 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
           .deliverPolicy(DeliverPolicy.ByStartSequence)
           .startSequence(revision)
     }
-
-    for {
-      occ <- prepareOrderedConsumer(keys, withWatchMode).toResource
-      sub <- occ.consumeWithWarmup(jsMsg => handler(new KeyValueEntry(jsMsg.asJava)), warmupTimeout)
-    } yield sub
   }
 
   override def keys(timeout: FiniteDuration): F[List[String]] =
@@ -248,6 +287,18 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
     readSubjectF    = wrapped.readSubject[F](_)
     filterSubjects <- filters.traverse(readSubjectF)
     ocCtx          <- streamCtx.createOrderedConsumer(occ.filterSubjects(filterSubjects.asJava))
+  } yield ocCtx
+
+  private def prepareOrderedPacedConsumer(
+    filters: List[String],
+    occ: OrderedConsumerConfiguration,
+    listener: PacedConsumerListener[F]
+  ): F[OrderedConsumerContext[F]] = for {
+    streamName     <- wrapped.getStreamName
+    streamCtx      <- jetStream.streamContext(streamName, keyValueOptions.map(_.getJetStreamOptions))
+    readSubjectF    = wrapped.readSubject[F](_)
+    filterSubjects <- filters.traverse(readSubjectF)
+    ocCtx          <- streamCtx.createOrderedPacedConsumer(occ.filterSubjects(filterSubjects.asJava), listener)
   } yield ocCtx
 
   override def asJava: JKeyValue = wrapped
