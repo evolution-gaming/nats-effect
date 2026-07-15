@@ -396,6 +396,10 @@ The `loadtest` module contains a runnable harness that reproduces the KV warm-up
 consumption: warm-up outcomes, client-side drops, slow-consumer events, consumer recreations,
 liveness lag and peak heap. Results are recorded in [docs/loadtest-results.md](docs/loadtest-results.md).
 
+The load test is **manual-only**: it is a plain `main` with no test sources, so CI (`sbt check
+test`) only compiles it and never executes it — a run happens exclusively when someone invokes
+`sbt loadtest/run` locally.
+
 Run a scenario (boots an embedded `nats-server`, no external setup needed):
 
 ```bash
