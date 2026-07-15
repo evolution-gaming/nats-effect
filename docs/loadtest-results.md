@@ -20,10 +20,16 @@ threads (no starvation bias); output formatting is locale-pinned.*
 | Environment | Apple M3 Max (16 cores, pool restricted to 2), 48 GiB RAM, macOS 26.5.1, OpenJDK 21.0.10, `-Xmx4g`, embedded nats-server 2.12.1 (loopback), jnats 2.25.1 |
 | Command | `sbt 'loadtest/run scenario=<baseline\|unlimited> watchers=20 keys=18000 valueSize=12288 warmupTimeoutSec=60 computeThreads=2'` |
 
-Scenarios:
+Scenarios (as measured, against pre-#10 `master`):
 
-- **baseline** — current `master`: jnats default pending limits per dispatcher (512 Ki msgs / 64 MiB).
-- **unlimited** — the interim fix: `Options.withPendingLimits(0, 0)` (what PR #10 applies to JS consumers).
+- **baseline** — jnats default pending limits per dispatcher (512 Ki msgs / 64 MiB).
+- **unlimited** — the interim fix: unlimited pending limits on JS dispatchers (what PR #10 has
+  since baked into `master`).
+
+> Note: after #10 merged, every JetStream dispatcher is hardcoded to unlimited pending limits, so
+> on current `master` both scenarios run the same configuration (the **unlimited** column) and the
+> drop-reproducing **baseline** configuration requires a pre-#10 checkout. The numbers below are
+> preserved as recorded.
 
 ## Results
 

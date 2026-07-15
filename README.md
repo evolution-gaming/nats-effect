@@ -403,8 +403,8 @@ test`) only compiles it and never executes it — a run happens exclusively when
 Run a scenario (boots an embedded `nats-server`, no external setup needed):
 
 ```bash
-sbt 'loadtest/run scenario=baseline'    # jnats default pending limits
-sbt 'loadtest/run scenario=unlimited'   # Options.withPendingLimits(0, 0)
+sbt 'loadtest/run scenario=baseline'    # historically: jnats default pending limits (see note below)
+sbt 'loadtest/run scenario=unlimited'   # unlimited pending limits on JS dispatchers (master default since #10)
 ```
 
 All parameters are optional `key=value` arguments with the incident-reproducing defaults:

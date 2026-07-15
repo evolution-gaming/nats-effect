@@ -82,16 +82,14 @@ object Runner {
       // no resource finalizer runs.
       server <- EmbeddedNats.resource(config.port, shutdownHook = true)
 
-      options = {
-        val base = Options[IO]()
-          .withNatsServerUris(Vector(server.url()))
-          .withConnectionName(Some(s"loadtest-${config.scenario.name}"))
-          .withErrorListener(Some(new CountingErrorListener(counters)))
-        config.scenario match {
-          case Scenario.Baseline  => base
-          case Scenario.Unlimited => base.withPendingLimits(0, 0)
-        }
-      }
+      // Since #10, WrappedBaseConsumerContext hardcodes setPendingLimits(0, 0) on every JetStream dispatcher,
+      // so both scenarios run the same configuration on current master: the drop-reproducing default-limits
+      // baseline is no longer constructible through the public API (see docs/loadtest-results.md for the
+      // pre-#10 numbers of both configurations).
+      options = Options[IO]()
+        .withNatsServerUris(Vector(server.url()))
+        .withConnectionName(Some(s"loadtest-${config.scenario.name}"))
+        .withErrorListener(Some(new CountingErrorListener(counters)))
 
       connection <- Nats.connect(options)
       js         <- JetStream.fromConnection[IO](connection).toResource
