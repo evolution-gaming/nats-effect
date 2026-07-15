@@ -275,6 +275,9 @@ trait KeyValue[F[_]] {
     * large buckets and slow handlers cannot cause client-side message drops or ordered-consumer recreation storms. Experimental; naming is
     * provisional.
     *
+    * <p>As with [[watchAll]], recovery after a consumer recreation resumes by stream sequence: a `LatestValues` watch may briefly observe
+    * intermediate revisions while catching up (per-key revision order is preserved).
+    *
     * @param watchMode
     *   watch mode (new only, include history, updates only)
     * @param handler

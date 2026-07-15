@@ -77,7 +77,9 @@ class PacedStressSpec(global: GlobalRead) extends JetStreamSpec(global) {
       val processedCounts  = results.map { case (_, _, processed, _) => processed }
       // Pacing sanity: pulls scale with batches - KeyCount / 500 (default batch) for the warmup
       // drain plus a small idle-window allowance - not with messages
-      val pullsBounded = results.forall { case (_, _, _, pulls) => pulls <= KeyCount / 500 + 5 }
+      // Tight enough to catch a pacing regression (a 2x repull scheme would double this); the +2
+      // covers the initial pull and idle windows racing the shutdown
+      val pullsBounded = results.forall { case (_, _, _, pulls) => pulls <= KeyCount / 500 + 2 }
 
       expect.eql(warmedUp, Watchers) &&
       expect.eql(deliveredCounts, List.fill(Watchers)(KeyCount)) &&

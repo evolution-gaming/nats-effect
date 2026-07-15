@@ -28,9 +28,9 @@ private[natseffect] object PacedConsumerContexts {
   /** Position of an ordered consumer in the stream: the consumer sequence expected next from the current server-side consumer, and the
     * stream sequence of the last delivered message (0 before anything was delivered).
     */
-  final private case class OrderedPosition(expectedConsumerSeq: Long, lastStreamSeq: Long)
+  final private[natseffect] case class OrderedPosition(expectedConsumerSeq: Long, lastStreamSeq: Long)
 
-  private object OrderedPosition {
+  private[natseffect] object OrderedPosition {
     val Initial: OrderedPosition = OrderedPosition(expectedConsumerSeq = 1L, lastStreamSeq = 0L)
   }
 
@@ -40,13 +40,13 @@ private[natseffect] object PacedConsumerContexts {
     * context, `highestSeq` there), and `getConsumerName` answers between and after consumes - its None is real public API state, an ordered
     * context has no consumer until the first consume.
     */
-  final private case class OrderedContextState(
+  final private[natseffect] case class OrderedContextState(
     consumeActive: Boolean,
     lastConsumerName: Option[String],
     position: OrderedPosition
   )
 
-  private object OrderedContextState {
+  private[natseffect] object OrderedContextState {
     val Initial: OrderedContextState =
       OrderedContextState(consumeActive = false, lastConsumerName = None, position = OrderedPosition.Initial)
   }
@@ -160,33 +160,6 @@ private[natseffect] object PacedConsumerContexts {
     state: Ref[F, OrderedContextState]
   ): Resource[F, ActiveSubscription[F]] = {
 
-    /** The ordered gap check; the transport has already verified the message is a JetStream one. Advancing the position here, before the
-      * handler, is safe because the engine's take-to-handle step is masked: nothing can interrupt between this advance and handler
-      * completion (and a process crash discards the in-memory position with everything else).
-      */
-    def sequenceGapCheck(message: JMessage): F[Directive.DataDirective] =
-      Async[F].delay(message.metaData()).flatMap { meta =>
-        state.modify { current =>
-          if (meta.consumerSequence() == current.position.expectedConsumerSeq)
-            (
-              current.copy(
-                position = OrderedPosition(
-                  expectedConsumerSeq = current.position.expectedConsumerSeq + 1,
-                  lastStreamSeq = meta.streamSequence()
-                )
-              ),
-              Directive.Deliver(message): Directive.DataDirective
-            )
-          else
-            (
-              current,
-              Directive.Restart(
-                s"consumer sequence gap: expected ${current.position.expectedConsumerSeq}, received ${meta.consumerSequence()}"
-              ): Directive.DataDirective
-            )
-        }
-      }
-
     /** Generous enough that an application stall between pulls does not get the consumer reaped; a reaped consumer is recovered by the
       * liveness probe -> resubscribe path anyway.
       */
@@ -213,7 +186,11 @@ private[natseffect] object PacedConsumerContexts {
         .inactiveThreshold(inactiveThreshold)
       // While nothing has been delivered yet (lastStreamSeq == 0), a resubscribe deliberately
       // replays the user's original deliver policy (LastPerSubject / ByStartSequence / startTime)
-      // rather than forcing sequence 1 - only after the first delivery does continuation kick in
+      // rather than forcing sequence 1 - only after the first delivery does continuation kick in.
+      // After the first delivery a restart always resumes ByStartSequence - every subsequent
+      // message, not the user's original policy - matching the jnats ordered recreate; e.g. a
+      // LastPerSubject watcher may observe intermediate revisions while catching up after a
+      // recreation (per-subject revision order is still preserved)
       val positioned =
         if (lastStreamSeq > 0L)
           base
@@ -238,13 +215,42 @@ private[natseffect] object PacedConsumerContexts {
           .stream(streamName)
           .configuration(consumerConfiguration(lastSeq))
           .build(),
-        inspect = sequenceGapCheck
+        inspect = sequenceGapCheck(state)
       )
       // The name must outlive this subscription (getConsumerName works between and after consumes),
       // so it is published to the context state as part of establishing the subscription
       _ <- Resource.eval(state.update(_.copy(lastConsumerName = Some(active.consumerName))))
     } yield active
   }
+
+  /** The ordered gap check; the transport has already verified the message is a JetStream one. Advancing the position here, before the
+    * handler, is safe because the engine's take-to-handle step is masked: nothing can interrupt between this advance and handler completion
+    * (and a process crash discards the in-memory position with everything else).
+    */
+  private[natseffect] def sequenceGapCheck[F[_]: Async](
+    state: Ref[F, OrderedContextState]
+  )(message: JMessage): F[Directive.DataDirective] =
+    Async[F].delay(message.metaData()).flatMap { meta =>
+      state.modify { current =>
+        if (meta.consumerSequence() == current.position.expectedConsumerSeq)
+          (
+            current.copy(
+              position = OrderedPosition(
+                expectedConsumerSeq = current.position.expectedConsumerSeq + 1,
+                lastStreamSeq = meta.streamSequence()
+              )
+            ),
+            Directive.Deliver(message): Directive.DataDirective
+          )
+        else
+          (
+            current,
+            Directive.Restart(
+              s"consumer sequence gap: expected ${current.position.expectedConsumerSeq}, received ${meta.consumerSequence()}"
+            ): Directive.DataDirective
+          )
+      }
+    }
 
   private def lookupConsumerInfo[F[_]: Async](
     jsm: JJetStreamManagement,

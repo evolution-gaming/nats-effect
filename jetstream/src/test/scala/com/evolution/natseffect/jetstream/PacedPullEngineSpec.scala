@@ -226,6 +226,41 @@ object PacedPullEngineSpec extends SimpleIOSuite {
     } yield result
   }
 
+  test("a throwing listener does not affect consumption and is reported") {
+    val throwingListener = new PacedConsumerListener[IO] {
+      private def boom: IO[Unit] = IO.raiseError(new RuntimeException("listener failure"))
+      override def subscribed(consumerName: String, resubscribed: Boolean): IO[Unit]        = boom
+      override def resubscribing(consumerName: String, reason: String): IO[Unit]            = boom
+      override def failed(error: Throwable, retryIn: FiniteDuration): IO[Unit]              = boom
+      override def pullIssued(batchSize: Int): IO[Unit]                                     = boom
+      override def messageProcessed(message: JetStreamMessage[IO]): IO[Unit]                = boom
+      override def handlerFailed(message: JetStreamMessage[IO], error: Throwable): IO[Unit] = boom
+    }
+
+    for {
+      directives <- Queue.unbounded[IO, Directive]
+      _          <- (1 to 2).toList.traverse_(n => directives.offer(Directive.Deliver(message(n))))
+      subscribes <- Ref.of[IO, Int](0)
+      pulls      <- Ref.of[IO, Int](0)
+      received   <- Ref.of[IO, Int](0)
+      done       <- Deferred[IO, Unit]
+      reported   <- Ref.of[IO, Int](0)
+
+      subscribe = fakeSubscribe(directives, subscribes, pulls)
+      handler   = (_: JMessage) => received.updateAndGet(_ + 1).flatMap(n => done.complete(()).void.whenA(n == 2))
+
+      result <- run(subscribe, handler, throwingListener, _ => reported.update(_ + 1)).use { _ =>
+        for {
+          _ <- done.get.timeout(5.seconds)
+          r <- received.get
+          e <- reported.get
+        } yield expect.eql(r, 2) &&
+          // At least the subscribed event and both messageProcessed events failed and were reported
+          expect(e >= 3)
+      }
+    } yield result
+  }
+
   test("close waits for the in-flight message to finish") {
     for {
       directives <- Queue.unbounded[IO, Directive]
