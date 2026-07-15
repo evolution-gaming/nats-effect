@@ -9,12 +9,16 @@ sealed trait Scenario {
 
 object Scenario {
 
-  /** Current master behavior: jnats default pending limits (512Ki messages / 64 MiB per dispatcher). Expected to reproduce the incident:
-    * client-side drops, slow-consumer events, ordered-consumer recreations, warmup timeouts, liveness stalls.
+  /** Historically: jnats default pending limits (512Ki messages / 64 MiB per dispatcher), reproducing the incident's client-side drops,
+    * slow-consumer events, ordered-consumer recreations, warmup timeouts and liveness stalls. Since #10 hardcoded unlimited pending limits
+    * for JetStream dispatchers, this configuration is no longer reachable via the public API - on current master this scenario is identical
+    * to [[Unlimited]]; the recorded drop-reproduction numbers in docs/loadtest-results.md are from pre-#10 master.
     */
   case object Baseline extends Scenario { val name = "baseline" }
 
-  /** The interim fix: Options.withPendingLimits(0, 0) - dispatcher queues unbounded, no drops, memory cost measured instead. */
+  /** The interim fix, baked into master by #10: unlimited pending limits on JetStream dispatchers - no drops, but the overload remains
+    * (control-plane timeouts, heartbeat-driven recreations, unbounded memory for genuinely slow consumers).
+    */
   case object Unlimited extends Scenario { val name = "unlimited" }
 
   val all: List[Scenario] = List(Baseline, Unlimited)
