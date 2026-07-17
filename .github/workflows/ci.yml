@@ -33,4 +33,4 @@ jobs:
         uses: sbt/setup-sbt@v1
 
       - name: build ${{ matrix.scala }}
-        run: sbt ++${{ matrix.scala }} clean check test
+        run: sbt ++${{ matrix.scala }} clean check test doc

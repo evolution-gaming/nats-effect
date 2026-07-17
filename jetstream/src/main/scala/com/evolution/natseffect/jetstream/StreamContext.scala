@@ -85,8 +85,8 @@ trait StreamContext[F[_]] {
     */
   def createOrderedPacedConsumer(config: OrderedConsumerConfiguration): F[OrderedConsumerContext[F]]
 
-  /** Variant of [[createOrderedPacedConsumer(config:*]] with an observability listener attached to the consume loop (see
-    * [[PacedConsumerListener]]).
+  /** Variant of [[createOrderedPacedConsumer(config:io\.nats\.client\.api\.OrderedConsumerConfiguration)* createOrderedPacedConsumer]] with
+    * an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
     */
   def createOrderedPacedConsumer(
     config: OrderedConsumerConfiguration,
@@ -95,8 +95,9 @@ trait StreamContext[F[_]] {
 
   /** Get a consumer context for an existing consumer, backed by the processing-paced pull engine (see `PacedPullEngine`).
     *
-    * <p>Alternative to [[getConsumerContext]] with the same trait and `consume` semantics; see [[createOrderedPacedConsumer]] for the
-    * engine differences. Experimental; naming is provisional.
+    * <p>Alternative to [[getConsumerContext]] with the same trait and `consume` semantics; see
+    * [[createOrderedPacedConsumer(config:io\.nats\.client\.api\.OrderedConsumerConfiguration)* createOrderedPacedConsumer]] for the engine
+    * differences. Experimental; naming is provisional.
     *
     * @param consumerName
     *   the name of the consumer
@@ -105,8 +106,8 @@ trait StreamContext[F[_]] {
     */
   def getPacedConsumerContext(consumerName: String): F[ConsumerContext[F]]
 
-  /** Variant of [[getPacedConsumerContext(consumerName:*]] with an observability listener attached to the consume loop (see
-    * [[PacedConsumerListener]]).
+  /** Variant of [[getPacedConsumerContext(consumerName:String)* getPacedConsumerContext]] with an observability listener attached to the
+    * consume loop (see [[PacedConsumerListener]]).
     */
   def getPacedConsumerContext(consumerName: String, listener: PacedConsumerListener[F]): F[ConsumerContext[F]]
 
