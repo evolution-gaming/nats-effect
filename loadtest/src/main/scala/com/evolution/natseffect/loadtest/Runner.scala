@@ -3,7 +3,7 @@ package com.evolution.natseffect.loadtest
 import cats.effect.{IO, Resource}
 import cats.effect.implicits.*
 import cats.syntax.all.*
-import com.evolution.natseffect.jetstream.{EmbeddedNats, JetStream, KeyValue, KvWatchMode, Warmup}
+import com.evolution.natseffect.jetstream.{EmbeddedNats, JetStream, KeyValue, KvWatchMode, SubscriptionWithWarmup, Warmup}
 import com.evolution.natseffect.{Nats, Options}
 import io.nats.client.api.{KeyValueConfiguration, KeyValueEntry, KeyValueOperation, StorageType}
 
@@ -197,21 +197,25 @@ object Runner {
         }
       }
 
-      // Exhaustive on purpose: a new scenario (e.g. fetch) must pick its consume engine here or compilation fails
-      // with a non-exhaustive-match error - otherwise it would silently load-test watch semantics.
+      def awaitWarmup(watch: Resource[IO, SubscriptionWithWarmup[IO]]): IO[Warmup.Result] =
+        watch.use { sub =>
+          val pollName = {
+            sub.subscription.getConsumerName.attempt.flatMap {
+              case Right(name) if name != null => names.update(_ + name)
+              case _                           => IO.unit
+            } *> IO.sleep(50.millis)
+          }.foreverM
+
+          pollName.background.surround(sub.warmupLatch.get)
+        }
+
+      // Exhaustive on purpose: a new scenario must pick its consume engine here or compilation fails
+      // with a non-exhaustive-match error - otherwise it would silently load-test the wrong semantics.
       val consumeOnce: IO[Warmup.Result] = config.scenario match {
         case Scenario.Baseline | Scenario.Unlimited =>
-          kv.watchAll(KvWatchMode.LatestValues, handler, config.warmupTimeout)
-            .use { sub =>
-              val pollName = {
-                sub.subscription.getConsumerName.attempt.flatMap {
-                  case Right(name) if name != null => names.update(_ + name)
-                  case _                           => IO.unit
-                } *> IO.sleep(50.millis)
-              }.foreverM
-
-              pollName.background.surround(sub.warmupLatch.get)
-            }
+          awaitWarmup(kv.watchAll(KvWatchMode.LatestValues, handler, config.warmupTimeout))
+        case Scenario.Paced =>
+          awaitWarmup(kv.watchAllPaced(KvWatchMode.LatestValues, handler, config.warmupTimeout))
       }
 
       consumeOnce.attempt.flatMap { result =>

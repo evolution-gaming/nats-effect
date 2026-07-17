@@ -72,6 +72,44 @@ trait StreamContext[F[_]] {
     */
   def createOrderedConsumer(config: OrderedConsumerConfiguration): F[OrderedConsumerContext[F]]
 
+  /** Create an ordered consumer backed by the processing-paced pull engine (see `PacedPullEngine`).
+    *
+    * <p>Alternative to [[createOrderedConsumer]]: the returned context implements the same trait and `consume` semantics, but pulls are
+    * issued only as messages are processed, so the client-side buffer is bounded by the pull batch and slow handlers cannot cause message
+    * drops or ordered consumer recreation storms. Experimental; naming is provisional.
+    *
+    * @param config
+    *   the ordered consumer configuration
+    * @return
+    *   effect yielding an OrderedConsumerContext running on the paced engine
+    */
+  def createOrderedPacedConsumer(config: OrderedConsumerConfiguration): F[OrderedConsumerContext[F]]
+
+  /** Variant of [[createOrderedPacedConsumer(config:*]] with an observability listener attached to the consume loop (see
+    * [[PacedConsumerListener]]).
+    */
+  def createOrderedPacedConsumer(
+    config: OrderedConsumerConfiguration,
+    listener: PacedConsumerListener[F]
+  ): F[OrderedConsumerContext[F]]
+
+  /** Get a consumer context for an existing consumer, backed by the processing-paced pull engine (see `PacedPullEngine`).
+    *
+    * <p>Alternative to [[getConsumerContext]] with the same trait and `consume` semantics; see [[createOrderedPacedConsumer]] for the
+    * engine differences. Experimental; naming is provisional.
+    *
+    * @param consumerName
+    *   the name of the consumer
+    * @return
+    *   effect yielding a ConsumerContext for the named consumer, running on the paced engine
+    */
+  def getPacedConsumerContext(consumerName: String): F[ConsumerContext[F]]
+
+  /** Variant of [[getPacedConsumerContext(consumerName:*]] with an observability listener attached to the consume loop (see
+    * [[PacedConsumerListener]]).
+    */
+  def getPacedConsumerContext(consumerName: String, listener: PacedConsumerListener[F]): F[ConsumerContext[F]]
+
   /** Delete a consumer from this stream.
     *
     * @param consumerName

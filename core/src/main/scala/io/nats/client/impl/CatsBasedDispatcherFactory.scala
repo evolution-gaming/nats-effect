@@ -24,8 +24,8 @@ object CatsBasedDispatcherFactory {
         new NatsDispatcher(conn, handlerForDispatcher) {
 
           private val defaultCeDispatcher: Dispatcher[F] = handlerForDispatcher match {
-            case ConfiguringMessageHandler(Some(customCeDispatcher), _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
-            case _                                                      => dispatcherForRequests
+            case ConfiguringMessageHandler(Some(customCeDispatcher), _, _) => customCeDispatcher.asInstanceOf[Dispatcher[F]]
+            case _                                                         => dispatcherForRequests
           }
 
           private val defaultMessageHandler: MessageHandler = handlerForDispatcher match {
@@ -33,13 +33,26 @@ object CatsBasedDispatcherFactory {
             case _                                  => handlerForDispatcher
           }
 
+          private val exclusiveDefaultHandler: Boolean = handlerForDispatcher match {
+            case conf: ConfiguringMessageHandler[?] => conf.exclusiveDefaultHandler
+            case _                                  => false
+          }
+
           private val incomingQueue: ConsumerMessageQueue = new ConsumerMessageQueue {
             override def push(msg: NatsMessage): Unit = {
               val subscription = msg.getNatsSubscription
 
               if (isActive && subscription != null && subscription.isActive) {
-                val handlerForSubscription = nonDefaultHandlerBySid.get(msg.getSID)
-                val handler                = if (handlerForSubscription != null) handlerForSubscription else defaultMessageHandler
+                // An exclusive default handler takes every message of this dispatcher, bypassing
+                // handlers registered per subscription (for JetStream subscriptions that is the
+                // jnats wrapper, which would otherwise swallow status messages and hide the raw
+                // message behind its own machinery)
+                val handler =
+                  if (exclusiveDefaultHandler && defaultMessageHandler != null) defaultMessageHandler
+                  else {
+                    val handlerForSubscription = nonDefaultHandlerBySid.get(msg.getSID)
+                    if (handlerForSubscription != null) handlerForSubscription else defaultMessageHandler
+                  }
 
                 if (handler != null) {
                   subscription.incrementDeliveredCount()

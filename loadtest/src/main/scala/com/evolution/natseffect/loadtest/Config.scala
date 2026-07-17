@@ -21,7 +21,10 @@ object Scenario {
     */
   case object Unlimited extends Scenario { val name = "unlimited" }
 
-  val all: List[Scenario] = List(Baseline, Unlimited)
+  /** The paced consume engine (#12): processing-paced pulls, KV watch via KeyValue.watchAllPaced. */
+  case object Paced extends Scenario { val name = "paced" }
+
+  val all: List[Scenario] = List(Baseline, Unlimited, Paced)
 
   def parse(s: String): Either[String, Scenario] =
     all.find(_.name == s).toRight(s"Unknown scenario '$s', expected one of: ${all.map(_.name).mkString(", ")}")
