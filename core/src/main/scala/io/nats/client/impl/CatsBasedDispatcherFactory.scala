@@ -69,19 +69,26 @@ object CatsBasedDispatcherFactory {
                       defaultCeDispatcher -> Async[F].delay(other.onMessage(msg))
                   }
 
-                  dispatcher.unsafeToFuture {
-                    effect
-                      .recoverWith {
-                        case e: Error     => Async[F].delay(conn.processException(new Exception(e)))
-                        case e: Exception => Async[F].delay(conn.processException(e))
-                      }
-                      .guarantee(
-                        Async[F].delay {
-                          length.decrementAndGet()
-                          sizeInBytes.addAndGet(-messageSize)
-                          if (subscription.reachedUnsubLimit()) conn.invalidate(subscription)
+                  def cleanup(): Unit = {
+                    length.decrementAndGet()
+                    sizeInBytes.addAndGet(-messageSize)
+                    if (subscription.reachedUnsubLimit()) conn.invalidate(subscription)
+                  }
+
+                  try
+                    dispatcher.unsafeToFuture {
+                      effect
+                        .recoverWith {
+                          case e: Error     => Async[F].delay(conn.processException(new Exception(e)))
+                          case e: Exception => Async[F].delay(conn.processException(e))
                         }
-                      )
+                        .guarantee(Async[F].delay(cleanup()))
+                    }
+                  catch {
+                    // Pushing new messages happens independently from the Dispatcher lifecycle which causes a race
+                    // condition between releasing the dispatcher and processing a message. If Cats Effect Dispatcher
+                    // has already been closed, the error can be safely ignored.
+                    case _: IllegalStateException => cleanup()
                   }
                 }
               }
