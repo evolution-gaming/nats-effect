@@ -296,7 +296,9 @@ trait KeyValue[F[_]] {
     metaDataOnly: Boolean = false
   ): Resource[F, SubscriptionWithWarmup[F]]
 
-  /** Variant of [[watchAllPaced(watchMode:*]] with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
+  /** Variant of
+    * [[watchAllPaced(watchMode:com\.evolution\.natseffect\.jetstream\.KvWatchMode,handler:io\.nats\.client\.api\.KeyValueEntry=>F[Unit],warmupTimeout:scala\.concurrent\.duration\.FiniteDuration,metaDataOnly:Boolean)* watchAllPaced]]
+    * with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
     */
   def watchAllPaced(
     watchMode: KvWatchMode,
@@ -308,8 +310,9 @@ trait KeyValue[F[_]] {
 
   /** Watch specific keys for changes using the processing-paced pull engine.
     *
-    * <p>Alternative to [[watch]] with identical semantics; see [[watchAllPaced]] for the engine differences. Experimental; naming is
-    * provisional.
+    * <p>Alternative to [[watch]] with identical semantics; see
+    * [[watchAllPaced(watchMode:com\.evolution\.natseffect\.jetstream\.KvWatchMode,handler:io\.nats\.client\.api\.KeyValueEntry=>F[Unit],warmupTimeout:scala\.concurrent\.duration\.FiniteDuration,metaDataOnly:Boolean)* watchAllPaced]]
+    * for the engine differences. Experimental; naming is provisional.
     *
     * @param keys
     *   list of keys to watch (supports wildcards)
@@ -332,7 +335,9 @@ trait KeyValue[F[_]] {
     metaDataOnly: Boolean = false
   ): Resource[F, SubscriptionWithWarmup[F]]
 
-  /** Variant of [[watchPaced(keys:*]] with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
+  /** Variant of
+    * [[watchPaced(keys:List[String],watchMode:com\.evolution\.natseffect\.jetstream\.KvWatchMode,handler:io\.nats\.client\.api\.KeyValueEntry=>F[Unit],warmupTimeout:scala\.concurrent\.duration\.FiniteDuration,metaDataOnly:Boolean)* watchPaced]]
+    * with an observability listener attached to the consume loop (see [[PacedConsumerListener]]).
     */
   def watchPaced(
     keys: List[String],
@@ -376,7 +381,7 @@ trait KeyValue[F[_]] {
 
   /** Get all keys in the bucket along with the warmup outcome.
     *
-    * <p>Unlike [[keys]], this surfaces the [[Warmup.Result]] so callers can tell whether the returned list is complete
+    * <p>Unlike [[keys(timeout* keys]], this surfaces the [[Warmup.Result]] so callers can tell whether the returned list is complete
     * ([[Warmup.Result.Success]]) or was cut short because `timeout` elapsed before every pending message was drained
     * ([[Warmup.Result.Timeout]]). `keys` cannot distinguish these cases and will silently return a partial key set on timeout.
     *
@@ -460,7 +465,7 @@ trait KeyValue[F[_]] {
   def history(key: String, timeout: FiniteDuration): F[List[KeyValueEntry]]
 }
 
-/** Result of a [[KeyValue.keysDetailed]] call.
+/** Result of a [[KeyValue.keysDetailed(timeout* KeyValue.keysDetailed]] call.
   *
   * @param keys
   *   the keys collected during warmup
