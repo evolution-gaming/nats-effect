@@ -46,7 +46,9 @@ abstract class JetStreamSpec(global: GlobalRead) extends IOSuite {
     jsm        <- js.jetStreamManagement().toResource
 
     _ <- Resource.make(
-      jsm.addStream(StreamConfiguration.builder().name(streamName).subjects(subject).build())
+      jsm.addStream(
+        StreamConfiguration.builder().name(streamName).subjects(subject).storageType(StorageType.Memory).build()
+      )
     )(_ => jsm.deleteStream(streamName).void)
   } yield (js, streamName, subject)
 
