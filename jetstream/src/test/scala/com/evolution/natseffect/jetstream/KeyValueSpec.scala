@@ -167,7 +167,8 @@ class KeyValueSpec(global: GlobalRead) extends JetStreamSpec(global) {
       // Generous timeout: warmup drains every pending message -> Success with the full key set.
       complete <- kv.keysDetailed(5.seconds).toResource
 
-      // Zero timeout: warmup is cut short before draining -> Timeout with a partial (possibly empty) key set.
+      // Zero timeout: the deadline usually cuts warmup short, but a fast drain can still win the race —
+      // either way the warmup result must describe the completeness of the returned keys.
       truncated <- kv.keysDetailed(Duration.Zero).toResource
 
     } yield expect(complete.warmup match {
@@ -175,11 +176,11 @@ class KeyValueSpec(global: GlobalRead) extends JetStreamSpec(global) {
       case _                        => false
     }) &&
       expect.eql(complete.keys.size, 25) &&
-      expect(truncated.warmup match {
-        case Warmup.Result.Timeout(_) => true
-        case _                        => false
-      }) &&
       // keys() alone would return `truncated.keys` with no signal it was cut short — that is the bug being fixed.
-      expect(truncated.keys.size <= complete.keys.size)
+      (truncated.warmup match {
+        case Warmup.Result.Timeout(_)  => expect(truncated.keys.size <= complete.keys.size)
+        case Warmup.Result.Success(_)  => expect.eql(truncated.keys.size, complete.keys.size)
+        case Warmup.Result.Canceled(_) => failure("warmup unexpectedly canceled")
+      })
   }
 }
