@@ -67,7 +67,8 @@ object KeyValueReader {
   private[jetstream] def impl[F[_]: Async](
     kv: KeyValue[F],
     keyFilters: KeyFilters = Set.empty,
-    warmupTimeout: FiniteDuration
+    warmupTimeout: FiniteDuration,
+    paced: Boolean = false
   ): Resource[F, Impl[F]] = for {
     cache <- Ref[F].of(Map.empty[Key, KeyValueEntry]).toResource
 
@@ -87,12 +88,21 @@ object KeyValueReader {
           })
       }
 
-    kvSubscription <- kv.watch(
-      keys = keyFilters.toList,
-      watchMode = KvWatchMode.LatestValues,
-      handler = handler,
-      warmupTimeout = warmupTimeout
-    )
+    kvSubscription <-
+      if (paced)
+        kv.watchPaced(
+          keys = keyFilters.toList,
+          watchMode = KvWatchMode.LatestValues,
+          handler = handler,
+          warmupTimeout = warmupTimeout
+        )
+      else
+        kv.watch(
+          keys = keyFilters.toList,
+          watchMode = KvWatchMode.LatestValues,
+          handler = handler,
+          warmupTimeout = warmupTimeout
+        )
 
     _ <- kvSubscription.warmupLatch.get.toResource
 
@@ -127,5 +137,34 @@ object KeyValueReader {
       .keyValue(bucketName, keyValueOptions)
       .toResource
       .flatMap(impl(_, keyFilters, warmupTimeout))
+
+  /** Variant of [[make]] whose cache-filling subscription runs on the processing-paced pull engine (see `KeyValue.watchPaced`): the
+    * consumer pulls messages only as they are processed, so large buckets cannot cause client-side message drops or ordered-consumer
+    * recreation storms during warmup. Semantics are otherwise identical to [[make]]. Experimental.
+    *
+    * @param js
+    *   the JetStream context
+    * @param bucketName
+    *   the name of the key-value bucket
+    * @param keyFilters
+    *   set of wildcard filters to limit cached keys (e.g., Set("config.*", "feature.*"))
+    * @param warmupTimeout
+    *   maximum time to wait for cache warmup
+    * @param keyValueOptions
+    *   optional key-value configuration options
+    * @return
+    *   Resource yielding a KeyValueReader with populated cache
+    */
+  def makePaced[F[_]: Async](
+    js: JetStream[F],
+    bucketName: String,
+    keyFilters: KeyFilters,
+    warmupTimeout: FiniteDuration,
+    keyValueOptions: Option[KeyValueOptions] = None
+  ): Resource[F, KeyValueReader[F]] =
+    js
+      .keyValue(bucketName, keyValueOptions)
+      .toResource
+      .flatMap(impl(_, keyFilters, warmupTimeout, paced = true))
 
 }
