@@ -22,39 +22,39 @@ class ConsumerSpec(global: GlobalRead) extends NatsSpec(global) {
 
   testResource("increase pending messages and pending bytes when a message is read but not yet processed") { ctx =>
     for {
-      connection      <- Nats.connect(ctx.url())
-      dispatcher      <- connection.createDispatcher()
-      subject         <- randomSubject.toResource
-      deliverDeferred <- Deferred[IO, Message].toResource
-      _ <- dispatcher
-        .subscribe(subject) { msg =>
-          IO.sleep(1.second) *> deliverDeferred.complete(msg).void
-        }
-        .toResource
+      connection <- Nats.connect(ctx.url())
+      dispatcher <- connection.createDispatcher()
+      subject    <- randomSubject.toResource
+      started    <- Deferred[IO, Unit].toResource
+      release    <- Deferred[IO, Unit].toResource
+      _          <- dispatcher.subscribe(subject)(_ => started.complete(()) *> release.get).toResource
+
       pendingMessagesBefore <- dispatcher.pendingMessageCount.toResource
       pendingBytesBefore    <- dispatcher.pendingByteCount.toResource
       deliveredBefore       <- dispatcher.deliveredCount.toResource
-      _                     <- connection.publish(subject, "test".getBytes).toResource
+
+      _ <- connection.publish(subject, "test".getBytes).toResource
+      _ <- started.get.timeout(5.seconds).toResource
+
+      pendingMessagesDuring <- dispatcher.pendingMessageCount.toResource
+      pendingBytesDuring    <- dispatcher.pendingByteCount.toResource
+      deliveredDuring       <- dispatcher.deliveredCount.toResource
+
+      _ <- release.complete(()).toResource
 
       _ <- {
         for {
           bytes    <- dispatcher.pendingByteCount
           messages <- dispatcher.pendingMessageCount
-        } yield bytes > 0 && messages == 1
-      }.iterateUntil(identity).timeout(5.second).toResource
-
-      _ <- deliverDeferred.get.toResource
-
-      pendingMessagesAfter <- dispatcher.pendingMessageCount.toResource
-      pendingBytesAfter    <- dispatcher.pendingByteCount.toResource
-      deliveredAfter       <- dispatcher.deliveredCount.toResource
+        } yield bytes == 0L && messages == 0L
+      }.iterateUntil(identity).timeout(5.seconds).toResource
     } yield expect(
       pendingMessagesBefore == 0L &&
         pendingBytesBefore == 0L &&
-        pendingMessagesAfter == 0L &&
-        pendingBytesAfter == 0L &&
         deliveredBefore == 0L &&
-        deliveredAfter == 1L
+        pendingMessagesDuring == 1L &&
+        pendingBytesDuring > 0L &&
+        deliveredDuring == 1L
     )
   }
 
