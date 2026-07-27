@@ -115,7 +115,7 @@ object Warmup {
 
     for {
       warmupResult        <- Deferred[F, Result].toResource
-      maybeCompleteWarmup1 = maybeCompleteWarmup(warmupResult)
+      maybeCompleteWarmup1 = maybeCompleteWarmup(warmupResult)(_, _)
 
       warmupStartTime <- Async[F].monotonic.toResource
       timeMeasured     = Async[F].monotonic.map(_ - warmupStartTime)
