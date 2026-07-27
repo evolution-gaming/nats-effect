@@ -1,12 +1,12 @@
 import sbt.Test
 
 lazy val commonSettings = Seq(
-  homepage             := Some(url("https://github.com/evolution-gaming/nats-effect")),
+  homepage             := Some(uri("https://github.com/evolution-gaming/nats-effect")),
   organization         := "com.evolution",
   organizationName     := "Evolution",
-  organizationHomepage := Some(url("https://evolution.com")),
+  organizationHomepage := Some(uri("https://evolution.com")),
   startYear            := Some(2026),
-  licenses             := Seq(("MIT", url("https://opensource.org/licenses/MIT"))),
+  licenses             := Seq(("MIT", uri("https://opensource.org/licenses/MIT"))),
   crossScalaVersions   := Seq("2.13.18", "3.3.8"),
   versionScheme        := Some("semver-spec"),
   scalaVersion         := crossScalaVersions.value.head,
@@ -48,7 +48,7 @@ lazy val root = project
     Test / parallelExecution := true,
     addCommandAlias("fmt", "all scalafmtRepo"),
     addCommandAlias("check", "all scalafmtCheckRepo"),
-    addCommandAlias("build", "+all compile test")
+    addCommandAlias("build", "+all compile testFull")
   )
   .aggregate(core, jetstream, metrics, logback, loadtest)
 
