@@ -67,7 +67,7 @@ object Probes {
       t0 <- IO.monotonic
       _  <- IO.sleep(50.millis)
       t1 <- IO.monotonic
-      _ <- IO.delay {
+      _  <- IO.delay {
         counters.livenessLagMillis.add((t1 - t0 - 50.millis).toMillis.max(0L))
         ()
       }
@@ -82,7 +82,7 @@ object Probes {
       .make(
         IO.delay {
           val stop = new AtomicBoolean(false)
-          val t = new Thread(
+          val t    = new Thread(
             () =>
               while (!stop.get()) {
                 val used = Runtime.getRuntime.totalMemory() - Runtime.getRuntime.freeMemory()
@@ -105,7 +105,7 @@ object Probes {
     */
   def startWatchdog(config: Config, counters: Counters): AtomicBoolean = {
     val done = new AtomicBoolean(false)
-    val t = new Thread(
+    val t    = new Thread(
       () => {
         val deadline = System.nanoTime() + config.globalTimeout.toNanos
         while (!done.get() && System.nanoTime() < deadline) Thread.sleep(200)

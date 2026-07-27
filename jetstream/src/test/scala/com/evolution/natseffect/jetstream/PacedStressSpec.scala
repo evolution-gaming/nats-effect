@@ -47,8 +47,8 @@ class PacedStressSpec(global: GlobalRead) extends JetStreamSpec(global) {
 
       watchers <- (1 to Watchers).toList.traverse { _ =>
         for {
-          listener  <- CountingPacedListener.make.toResource
-          revisions <- Ref.of[IO, List[Long]](Nil).toResource
+          listener     <- CountingPacedListener.make.toResource
+          revisions    <- Ref.of[IO, List[Long]](Nil).toResource
           subscription <- kv.watchPaced(
             keys = List(">"),
             watchMode = KvWatchMode.LatestValues,

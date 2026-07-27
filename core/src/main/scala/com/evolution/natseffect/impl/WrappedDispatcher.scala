@@ -18,7 +18,7 @@ private[natseffect] class WrappedDispatcher[F[_]: Async] private (
     MonadCancel[F].uncancelable { _ =>
       for {
         messageHandler <- new CEMessageHandler[F](catsDispatcher, messageHandler).pure
-        subscription <- queue match {
+        subscription   <- queue match {
           case Some(value) =>
             Async[F].delay(new WrappedSubscription[F](wrapped.subscribe(subject, value, messageHandler), this))
           case None =>

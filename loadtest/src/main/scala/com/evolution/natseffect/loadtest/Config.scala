@@ -71,7 +71,7 @@ object Config {
       def int(key: String, default: Int, min: Int, max: Int = Int.MaxValue): Either[String, Int] = {
         consumedKeys += key
         map.get(key) match {
-          case None => Right(default)
+          case None    => Right(default)
           case Some(v) =>
             v.toIntOption
               .filter(i => i >= min && i <= max)

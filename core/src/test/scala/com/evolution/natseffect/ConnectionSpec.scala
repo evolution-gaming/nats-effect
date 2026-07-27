@@ -32,7 +32,7 @@ class ConnectionSpec(global: GlobalRead) extends NatsSpec(global) {
   testResource("fail on the first connect") { _ =>
     for {
       options <- IO(Options[IO]().withReconnectOnConnect(false).withNatsServerUris(Seq("nats://localhost:1111"))).toResource
-      failed <- Nats.connect(options).as(false).recover {
+      failed  <- Nats.connect(options).as(false).recover {
         case _: IOException => true
       }
     } yield expect(failed)

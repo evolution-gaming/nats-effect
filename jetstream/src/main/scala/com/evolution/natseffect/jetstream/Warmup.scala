@@ -102,7 +102,7 @@ object Warmup {
     ): F[Unit] =
       warmupResult.tryGet.flatMap {
         case Some(_) => Async[F].unit
-        case None =>
+        case None    =>
           cond.flatMap {
             case true =>
               for {

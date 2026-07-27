@@ -75,7 +75,7 @@ private[natseffect] object PacedConsumerContexts {
         ): Resource[F, MessageSubscription[F]] = {
           val pullConfig = PullConfig.fromConsumeOptions(consumeOptions)
           for {
-            _ <- singleConsumeSlot
+            _            <- singleConsumeSlot
             subscription <- PacedPullEngine.resource(
               subscribe = orderedSubscribe(js, streamName, configuration, connection, pullConfig.window, state),
               consumerInfo = lookupConsumerInfo(jsm, streamName, _),

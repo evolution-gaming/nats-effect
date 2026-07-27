@@ -228,7 +228,7 @@ object PacedPullEngineSpec extends SimpleIOSuite {
 
   test("acquisition fails with the last error after the first-subscribe retry budget") {
     for {
-      subscribes <- Ref.of[IO, Int](0)
+      subscribes   <- Ref.of[IO, Int](0)
       alwaysFailing = Resource.eval[IO, ActiveSubscription[IO]](
         subscribes.updateAndGet(_ + 1).flatMap(n => IO.raiseError(new RuntimeException(s"subscribe failed $n")))
       )

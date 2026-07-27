@@ -136,18 +136,18 @@ class PacedConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(global)
         .toResource
 
     } yield
-    // Every message is delivered exactly once across the two subscriptions; the exact split is a
-    // server scheduling detail (usually round-robin across outstanding pulls) and is not asserted
-    expect.eql(
-      List(
-        "message 1",
-        "message 2",
-        "message 3",
-        "message 4",
-        "message 5",
-        "message 6"
-      ),
-      allData.map(_._2).sorted
-    )
+      // Every message is delivered exactly once across the two subscriptions; the exact split is a
+      // server scheduling detail (usually round-robin across outstanding pulls) and is not asserted
+      expect.eql(
+        List(
+          "message 1",
+          "message 2",
+          "message 3",
+          "message 4",
+          "message 5",
+          "message 6"
+        ),
+        allData.map(_._2).sorted
+      )
   }
 }

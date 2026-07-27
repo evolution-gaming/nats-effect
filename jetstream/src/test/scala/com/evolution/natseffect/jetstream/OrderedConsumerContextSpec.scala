@@ -122,11 +122,11 @@ class OrderedConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(globa
       (_, data3) <- readMessage(queue)
 
     } yield
-    // Warmup should have timed out
-    matches(warmupResult) { case Warmup.Result.Timeout(_) => success } &&
-      // But messages are still being processed
-      expect.eql(data1, "message 1") &&
-      expect.eql(data2, "message 2") &&
-      expect.eql(data3, "message 3")
+      // Warmup should have timed out
+      matches(warmupResult) { case Warmup.Result.Timeout(_) => success } &&
+        // But messages are still being processed
+        expect.eql(data1, "message 1") &&
+        expect.eql(data2, "message 2") &&
+        expect.eql(data3, "message 3")
   }
 }

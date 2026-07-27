@@ -295,7 +295,7 @@ private[natseffect] object PacedPullEngine {
             _        <- issuePull
             deadline <- F.monotonic.map(_ + config.window)
             outcome  <- drainWindow(state, active, deadline, remaining = config.batchSize, deliveredAny = false)
-            end <- outcome match {
+            end      <- outcome match {
               case WindowOutcome.Handled     => loop(0)
               case end: CycleEnd             => F.pure(end)
               case WindowOutcome.Idle(early) =>
@@ -359,7 +359,7 @@ private[natseffect] object PacedPullEngine {
                   // label was lost. A dead subscription goes quiet the same way, so distinguish
                   // via the liveness handle
                   active.isActive.flatMap {
-                    case true => F.pure(windowOver(early = false))
+                    case true  => F.pure(windowOver(early = false))
                     case false =>
                       unlessStopped[WindowOutcome](state)(CycleEnd.Stopped)(
                         F.pure(CycleEnd.Resubscribe("subscription inactive", InitialRetryDelay))

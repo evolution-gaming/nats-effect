@@ -10,7 +10,7 @@ object Report {
     val cfg = r.config
 
     val successes = r.outcomes.collect { case WatcherOutcome(_, Right(s: Warmup.Result.Success), _) => s.time }
-    val timeouts = r.outcomes.count {
+    val timeouts  = r.outcomes.count {
       case WatcherOutcome(_, Right(_: Warmup.Result.Timeout), _) => true
       case _                                                     => false
     }

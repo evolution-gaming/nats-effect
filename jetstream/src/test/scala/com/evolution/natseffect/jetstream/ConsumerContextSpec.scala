@@ -76,33 +76,33 @@ class ConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(global) {
       finalConsumerInfo <- cc.getConsumerInfo.toResource
 
     } yield
-    // Consumer info assertions
-    expect(retrievedName.contains(consumerName)) &&
-      expect.eql(consumerInfo.name, consumerName) &&
-      expect.eql(consumerInfo.streamName, streamName) &&
-      // Message consumption assertions
-      expect.eql(data1, "message 1") &&
-      expect.eql(data2, "message 2") &&
-      expect.eql(data3, "message 3") &&
-      expect.eql(data4, "message to redeliver") &&
-      expect.eql(data5, "message to redeliver") &&
-      // Sequence assertions
-      expect.eql(meta1.streamSequence(), 1L) &&
-      expect.eql(meta1.consumerSequence(), 1L) &&
-      expect.eql(meta2.streamSequence(), 2L) &&
-      expect.eql(meta2.consumerSequence(), 2L) &&
-      expect.eql(meta3.streamSequence(), 3L) &&
-      expect.eql(meta3.consumerSequence(), 3L) &&
-      // Redelivery assertions
-      expect.eql(meta4.deliveredCount(), 1L) &&
-      expect.eql(meta4.streamSequence(), 4L) &&
-      expect.eql(meta4.consumerSequence(), 4L) &&
-      expect.eql(meta5.deliveredCount(), 2L) &&
-      expect.eql(meta5.streamSequence(), 4L) &&   // Same stream sequence, redelivered
-      expect.eql(meta5.consumerSequence(), 5L) && // Incremented consumer sequence on redelivery
-      // Final consumer state
-      expect.eql(finalConsumerInfo.numPending, 0L) &&
-      expect.eql(finalConsumerInfo.numAckPending, 0L)
+      // Consumer info assertions
+      expect(retrievedName.contains(consumerName)) &&
+        expect.eql(consumerInfo.name, consumerName) &&
+        expect.eql(consumerInfo.streamName, streamName) &&
+        // Message consumption assertions
+        expect.eql(data1, "message 1") &&
+        expect.eql(data2, "message 2") &&
+        expect.eql(data3, "message 3") &&
+        expect.eql(data4, "message to redeliver") &&
+        expect.eql(data5, "message to redeliver") &&
+        // Sequence assertions
+        expect.eql(meta1.streamSequence(), 1L) &&
+        expect.eql(meta1.consumerSequence(), 1L) &&
+        expect.eql(meta2.streamSequence(), 2L) &&
+        expect.eql(meta2.consumerSequence(), 2L) &&
+        expect.eql(meta3.streamSequence(), 3L) &&
+        expect.eql(meta3.consumerSequence(), 3L) &&
+        // Redelivery assertions
+        expect.eql(meta4.deliveredCount(), 1L) &&
+        expect.eql(meta4.streamSequence(), 4L) &&
+        expect.eql(meta4.consumerSequence(), 4L) &&
+        expect.eql(meta5.deliveredCount(), 2L) &&
+        expect.eql(meta5.streamSequence(), 4L) &&   // Same stream sequence, redelivered
+        expect.eql(meta5.consumerSequence(), 5L) && // Incremented consumer sequence on redelivery
+        // Final consumer state
+        expect.eql(finalConsumerInfo.numPending, 0L) &&
+        expect.eql(finalConsumerInfo.numAckPending, 0L)
   }
 
   testResource("multiple concurrent subscriptions for durable consumer") { ctx =>
@@ -147,22 +147,22 @@ class ConsumerContextSpec(global: GlobalRead) extends JetStreamSpec(global) {
         .toResource
 
     } yield
-    // Each subscription received 3 messages
-    expect.eql(
-      Map("consumer1" -> 3, "consumer2" -> 3),
-      allData.groupBy(_._1).view.mapValues(_.size).toMap
-    ) &&
-      // All 6 messages were delivered across both subscriptions
+      // Each subscription received 3 messages
       expect.eql(
-        List(
-          "message 1",
-          "message 2",
-          "message 3",
-          "message 4",
-          "message 5",
-          "message 6"
-        ),
-        allData.map(_._2).sorted
-      )
+        Map("consumer1" -> 3, "consumer2" -> 3),
+        allData.groupBy(_._1).view.mapValues(_.size).toMap
+      ) &&
+        // All 6 messages were delivered across both subscriptions
+        expect.eql(
+          List(
+            "message 1",
+            "message 2",
+            "message 3",
+            "message 4",
+            "message 5",
+            "message 6"
+          ),
+          allData.map(_._2).sorted
+        )
   }
 }

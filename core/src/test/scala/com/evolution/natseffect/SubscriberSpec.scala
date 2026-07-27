@@ -26,7 +26,7 @@ class SubscriberSpec(global: GlobalRead) extends NatsSpec(global) {
       dispatcher <- connection.createDispatcher()
       subject    <- randomSubject.toResource
       deferred   <- Deferred[IO, Message].toResource
-      _ <- dispatcher
+      _          <- dispatcher
         .subscribe(subject) { msg =>
           deferred.complete(msg).void
         }
@@ -269,7 +269,7 @@ class SubscriberSpec(global: GlobalRead) extends NatsSpec(global) {
       dispatcher       <- connection.createDispatcher()
       subject          <- randomSubject.toResource
       expectedResponse <- IO(s"ACK_{${Random.nextInt()}}").toResource
-      _ <- dispatcher
+      _                <- dispatcher
         .subscribe(subject) { msg =>
           val request = new String(msg.data.get)
           msg.replyTo.traverse(replyTo => connection.publish(replyTo, (request + expectedResponse).getBytes())).void

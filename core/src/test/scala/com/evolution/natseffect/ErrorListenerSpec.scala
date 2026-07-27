@@ -9,7 +9,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
 
   testResource("detect slow consumer") { ctx =>
     for {
-      detected <- Ref.of(false).toResource
+      detected      <- Ref.of(false).toResource
       errorListener <- IO(
         new ErrorListener[IO] {
           override def errorOccurred(conn: Connection[IO], error: String): IO[Unit]                 = IO.unit
@@ -37,7 +37,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
 
   testResource("detect discarded message") { ctx =>
     for {
-      failedWith <- Ref.of[IO, Option[Message]](None).toResource
+      failedWith    <- Ref.of[IO, Option[Message]](None).toResource
       errorListener <- IO(
         new ErrorListener[IO] {
           override def errorOccurred(conn: Connection[IO], error: String): IO[Unit]                 = IO.unit
@@ -52,7 +52,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
       ).toResource
       connection <- Nats.connect(options)
       subject    <- randomSubject.toResource
-      _ <- connection
+      _          <- connection
         .publish(subject, "message".getBytes)
         .untilM_(failedWith.get.map(_.nonEmpty))
         .timeout(10.seconds)
@@ -64,7 +64,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
 
   testResource("detect thrown exception") { ctx =>
     for {
-      deferred <- Deferred[IO, Throwable].toResource
+      deferred      <- Deferred[IO, Throwable].toResource
       errorListener <- IO(
         new ErrorListener[IO] {
           override def errorOccurred(conn: Connection[IO], error: String): IO[Unit]                 = IO.unit

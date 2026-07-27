@@ -69,19 +69,19 @@ class JetStreamManagementSpec(global: GlobalRead) extends JetStreamSpec(global) 
       failed  <- js.streamContext(stream2).attempt.toResource
 
     } yield
-    // Updated configuration assertions
-    expect.eql(updatedInfo.config.getName, stream1) &&
-      expect.eql(updatedInfo.config.getMaxMsgs, 500L) &&
-      expect.eql(updatedInfo.config.getMaxBytes, 5L * 1024L * 1024L) &&
-      expect.eql(updatedInfo.config.getMaxAge.toMillis, 2.hours.toMillis) &&
-      expect(updatedInfo.config.getRetentionPolicy == RetentionPolicy.Interest) &&
-      expect(updatedInfo.config.getDiscardPolicy == DiscardPolicy.New) &&
-      expect.eql(updatedInfo.config.getDuplicateWindow.toMillis, 5.minutes.toMillis) &&
-      expect.eql(updatedInfo.config.getSubjects.size, 2) &&
-      // List streams assertions
-      expect(streams.contains(stream1)) &&
-      // Delete assertions
-      expect(deleted) &&
-      expect(failed.isLeft)
+      // Updated configuration assertions
+      expect.eql(updatedInfo.config.getName, stream1) &&
+        expect.eql(updatedInfo.config.getMaxMsgs, 500L) &&
+        expect.eql(updatedInfo.config.getMaxBytes, 5L * 1024L * 1024L) &&
+        expect.eql(updatedInfo.config.getMaxAge.toMillis, 2.hours.toMillis) &&
+        expect(updatedInfo.config.getRetentionPolicy == RetentionPolicy.Interest) &&
+        expect(updatedInfo.config.getDiscardPolicy == DiscardPolicy.New) &&
+        expect.eql(updatedInfo.config.getDuplicateWindow.toMillis, 5.minutes.toMillis) &&
+        expect.eql(updatedInfo.config.getSubjects.size, 2) &&
+        // List streams assertions
+        expect(streams.contains(stream1)) &&
+        // Delete assertions
+        expect(deleted) &&
+        expect(failed.isLeft)
   }
 }

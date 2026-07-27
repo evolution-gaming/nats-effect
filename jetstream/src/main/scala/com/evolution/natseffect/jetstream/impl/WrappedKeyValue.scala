@@ -181,19 +181,20 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
 
     keysRef <- Ref.of[F, List[String]](List.empty)
 
-    runConsumer = for {
-      sub <- occ.consumeWithWarmup(
-        jsMsg => {
-          val op = getOperation(jsMsg.headers.orNull)
-          if (op eq KeyValueOperation.PUT)
-            keysRef.update(new NatsKeyValueUtil.BucketAndKey(jsMsg.asJava).key :: _)
-          else
-            Async[F].unit
-        },
-        timeout
-      )
+    runConsumer =
+      for {
+        sub <- occ.consumeWithWarmup(
+          jsMsg => {
+            val op = getOperation(jsMsg.headers.orNull)
+            if (op eq KeyValueOperation.PUT)
+              keysRef.update(new NatsKeyValueUtil.BucketAndKey(jsMsg.asJava).key :: _)
+            else
+              Async[F].unit
+          },
+          timeout
+        )
 
-    } yield sub.warmupLatch
+      } yield sub.warmupLatch
 
     warmup <- runConsumer.use(warmupLatch => warmupLatch.get)
     keys   <- keysRef.get
@@ -238,12 +239,12 @@ private[natseffect] class WrappedKeyValue[F[_]: Async](
     }
 
     // Run the consumer, and release it either when warmup is complete, or when the outer resource is released
-    consumerReleased <- Ref.of[F, Boolean](false).toResource
+    consumerReleased   <- Ref.of[F, Boolean](false).toResource
     (sub, releaseOnce) <- Resource
       .make {
         for {
           (sub, release) <- occ.consumeWithWarmup(handler, timeout).allocated
-          releaseOnce = consumerReleased.modify {
+          releaseOnce     = consumerReleased.modify {
             case true  => (true, Async[F].unit)
             case false => (true, release)
           }.flatten

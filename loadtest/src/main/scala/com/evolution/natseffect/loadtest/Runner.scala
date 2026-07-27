@@ -134,7 +134,7 @@ object Runner {
       }
       progress = new AtomicLong(0)
       t0      <- IO.monotonic
-      _ <- (0 until config.keys).toVector.parTraverseN(config.populateParallelism) { i =>
+      _       <- (0 until config.keys).toVector.parTraverseN(config.populateParallelism) { i =>
         kv.put(f"key$i%06d", value) *> IO.delay {
           val n = progress.incrementAndGet()
           if (n % 5000 == 0) println(s"  populated $n/${config.keys}")
