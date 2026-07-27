@@ -33,7 +33,10 @@ lazy val commonSettings = Seq(
           "-Werror",
           "-deprecation",
           "-feature",
-          "-language:adhocExtensions"
+          "-language:adhocExtensions",
+          // improve error messages:
+          "-explain",
+          "-explain-types"
         )
     }
   }
@@ -52,7 +55,7 @@ lazy val root = project
   )
   .aggregate(core, jetstream, metrics, logback, loadtest)
 
-lazy val core = project.settings(commonSettings).settings(Test / testFrameworks += TestFramework("weaver.framework.CatsEffect"))
+lazy val core = project.settings(commonSettings).settings(Test / testFrameworks += TestFrameworks.WeaverTestCats)
 
 lazy val jetstream = project.settings(commonSettings).dependsOn(core % "compile->compile;test->test")
 
