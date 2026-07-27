@@ -46,8 +46,8 @@ lazy val root = project
     name                     := "nats-effect",
     publish / skip           := true,
     Test / parallelExecution := true,
-    addCommandAlias("fmt", "all scalafmtAll scalafmtSbt"),
-    addCommandAlias("check", "all scalafmtCheckAll scalafmtSbtCheck"),
+    addCommandAlias("fmt", "all scalafmtRepo"),
+    addCommandAlias("check", "all scalafmtCheckRepo"),
     addCommandAlias("build", "+all compile test")
   )
   .aggregate(core, jetstream, metrics, logback, loadtest)
