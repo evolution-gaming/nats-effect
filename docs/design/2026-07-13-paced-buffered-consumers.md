@@ -88,9 +88,13 @@ permanent configuration errors, while still absorbing transient ones; after the 
 resubscribes retry indefinitely.
 
 `stop` lets the in-flight message finish and the loop exit at the next window boundary; `close`
-is prompt while waiting but also lets an in-flight message finish (the step is masked). A pull
-terminus arriving well before the window deadline is guarded with a 500ms sleep so terminus
-storms cannot re-pull in a hot loop; the guard self-disables for sub-second windows.
+is prompt while waiting but also lets an in-flight message finish (the step is masked). Statuses
+are matched to the pull they answer (jnats publishes every pull with a distinct reply subject);
+a stale status - typically the server's expiry `408` for a pull the engine already ended at its
+local deadline, which always fires first by one round trip - is skipped instead of ending the
+live window. A genuine pull terminus arriving well before the window deadline is guarded with a
+500ms sleep so terminus storms cannot re-pull in a hot loop; the guard self-disables for
+sub-second windows.
 
 ## Observability
 
@@ -106,11 +110,12 @@ the jnats connection `ErrorListener`, so existing log wiring works without a cus
   not interrupt; close waits for the in-flight message).
 - `PullStatusInterpreterSpec` — pins the status table so a jnats upgrade that shifts semantics
   fails loudly (the most upgrade-sensitive piece); `BufferedPullTransportSpec` pins the JetStream
-  verification in the classification.
+  verification and the stale-status gate in the classification.
 - `PacedOrderedConsumerContextSpec` / `PacedConsumerContextSpec` / `PacedKeyValueSpec` —
   server-backed behavior of the public API: warmup, recovery after consumer deletion, sequential
   continuation, stop, prompt idle release, handler failure, durable ack/redelivery, concurrent
-  consumes, KV watching.
+  consumes, KV watching, and the stale-terminus regression test (an idle consumer issues one
+  pull per window expiry, not two).
 - `PacedStressSpec` — the behavioral bar: 8 watchers x 1500 keys with a slow handler; zero drops,
   zero consumer recreations, strict revision order, pulls bounded by the batch budget.
 
