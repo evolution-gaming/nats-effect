@@ -45,6 +45,7 @@ object PacedPullEngineSpec extends SimpleIOSuite {
               consumerName = s"consumer-$n",
               pull = _ => pulls.update(_ + 1),
               next = poll => poll(directives.take),
+              tryNext = directives.tryTake,
               isActive = IO.pure(true)
             )
           )
@@ -213,17 +214,51 @@ object PacedPullEngineSpec extends SimpleIOSuite {
     for {
       directives <- Queue.unbounded[IO, Directive]
       _          <- directives.offer(Directive.Deliver(message(1)))
-      subscribes <- Ref.of[IO, Int](0)
-      pulls      <- Ref.of[IO, Int](0)
       completed  <- Deferred[IO, Unit]
 
-      subscribe = fakeSubscribe(directives, subscribes, pulls)
+      // tryNext never answers, so the delivery goes through the *waiting* step - the one racing
+      // the window deadline - which is the path this test pins
+      subscribe = Resource.pure[IO, ActiveSubscription[IO]](
+        ActiveSubscription[IO](
+          consumerName = "consumer-1",
+          pull = _ => IO.unit,
+          next = poll => poll(directives.take),
+          tryNext = IO.pure(None),
+          isActive = IO.pure(true)
+        )
+      )
       // The handler outlives the 300ms window; without the masked take-to-handle step the
       // window timeout would cancel it mid-sleep and `completed` would never fire
       handler = (_: JMessage) => IO.sleep(config.window + 200.millis) *> completed.complete(()).void
 
       result <- run(subscribe, handler).use(_ => completed.get.timeout(5.seconds).as(success))
     } yield result
+  }
+
+  test("already-buffered messages are delivered without touching the waiting step") {
+    for {
+      directives <- Queue.unbounded[IO, Directive]
+      _          <- (1 to 4).toList.traverse_(n => directives.offer(Directive.Deliver(message(n))))
+      received   <- Ref.of[IO, List[String]](Nil)
+      done       <- Deferred[IO, Unit]
+
+      // The waiting step never yields anything: every delivery below can only have come through
+      // the tryNext fast path, which is what keeps the per-take deadline machinery off the hot path
+      subscribe = Resource.pure[IO, ActiveSubscription[IO]](
+        ActiveSubscription[IO](
+          consumerName = "consumer-1",
+          pull = _ => IO.unit,
+          next = poll => poll(IO.never),
+          tryNext = directives.tryTake,
+          isActive = IO.pure(true)
+        )
+      )
+      handler = (msg: JMessage) => received.updateAndGet(msg.getSubject :: _).flatMap(r => done.complete(()).void.whenA(r.size == 4))
+
+      order <- run(subscribe, handler).use { _ =>
+        done.get.timeout(5.seconds) *> received.get.map(_.reverse)
+      }
+    } yield expect.eql(order, List("test.1", "test.2", "test.3", "test.4"))
   }
 
   test("acquisition fails with the last error after the first-subscribe retry budget") {
