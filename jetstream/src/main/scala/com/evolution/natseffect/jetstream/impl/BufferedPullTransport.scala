@@ -77,6 +77,7 @@ private[natseffect] object BufferedPullTransport {
       // Per the ActiveSubscription contract, poll applies to the wait alone: a taken message is
       // always classified, whatever cancellation is in flight
       next = poll => poll(queue.take).flatMap(classify(inspect, lastPullSubject.get)),
+      tryNext = queue.tryTake.flatMap(_.traverse(classify(inspect, lastPullSubject.get))),
       isActive = Async[F].delay(subscription.isActive)
     )
 
