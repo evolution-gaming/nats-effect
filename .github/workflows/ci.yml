@@ -2,35 +2,15 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master ]
   pull_request:
 
 jobs:
   test:
-
-    runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        scala:
-          - 2.13.18
-          - 3.3.8
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: coursier/cache-action@v6
-
-      - name: setup Java 17
-        uses: actions/setup-java@v5
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'sbt'
-
-      - name: setup SBT
-        uses: sbt/setup-sbt@v1
-
-      - name: build ${{ matrix.scala }}
-        run: sbt "++${{ matrix.scala }}; clean; check; all compile testFull doc"
+    uses: evolution-gaming/scala-github-actions/.github/workflows/ci.yml@v6
+    secrets: inherit
+    with:
+      # this repo never collected coverage; enabling it is a separate change
+      coverage: false
+      # TODO no sbt-version-policy in this repo, so binary compatibility was never checked
+      version_policy_check: false
