@@ -1,16 +1,17 @@
 import sbt.Test
 
 lazy val commonSettings = Seq(
-  homepage             := Some(uri("https://github.com/evolution-gaming/nats-effect")),
-  organization         := "com.evolution",
-  organizationName     := "Evolution",
-  organizationHomepage := Some(uri("https://evolution.com")),
-  startYear            := Some(2026),
-  licenses             := Seq(("MIT", uri("https://opensource.org/licenses/MIT"))),
-  crossScalaVersions   := Seq("2.13.18", "3.3.8"),
-  versionScheme        := Some("semver-spec"),
-  scalaVersion         := crossScalaVersions.value.head,
-  publishTo            := Some(Resolver.evolutionReleases),
+  homepage               := Some(uri("https://github.com/evolution-gaming/nats-effect")),
+  organization           := "com.evolution",
+  organizationName       := "Evolution",
+  organizationHomepage   := Some(uri("https://evolution.com")),
+  startYear              := Some(2026),
+  licenses               := Seq(("MIT", uri("https://opensource.org/licenses/MIT"))),
+  crossScalaVersions     := Seq("2.13.18", "3.3.8"),
+  versionScheme          := Some("semver-spec"),
+  scalaVersion           := crossScalaVersions.value.head,
+  publishTo              := Some(Resolver.evolutionReleases),
+  versionPolicyIntention := Compatibility.BinaryCompatible,
   scalacOptions ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
