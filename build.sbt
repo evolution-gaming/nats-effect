@@ -1,3 +1,4 @@
+import com.typesafe.tools.mima.core.{Problem, ProblemFilters}
 import sbt.Test
 
 lazy val commonSettings = Seq(
@@ -58,7 +59,13 @@ lazy val root = project
 
 lazy val core = project.settings(commonSettings).settings(Test / testFrameworks += TestFrameworks.WeaverTestCats)
 
-lazy val jetstream = project.settings(commonSettings).dependsOn(core % "compile->compile;test->test")
+lazy val jetstream = project
+  .settings(commonSettings)
+  .settings(
+    // PacedPullEngine is private[natseffect], so user code cannot link against it
+    mimaBinaryIssueFilters += ProblemFilters.exclude[Problem]("com.evolution.natseffect.jetstream.impl.PacedPullEngine*")
+  )
+  .dependsOn(core % "compile->compile;test->test")
 
 lazy val metrics = project.settings(commonSettings).dependsOn(core)
 
