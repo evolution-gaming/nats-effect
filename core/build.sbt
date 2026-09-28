@@ -1,8 +1,8 @@
 name := "nats-effect-core"
 
 libraryDependencies ++= Seq(
-  "io.nats"        % "jnats"       % "2.25.1",
-  "org.typelevel" %% "cats-effect" % "3.6.3",
-  "berlin.yuna"    % "nats-server" % "2.12.1" % Test,
-  "org.typelevel" %% "weaver-cats" % "0.10.1" % Test
+  "io.nats"        % "jnats"       % "2.26.3",
+  "org.typelevel" %% "cats-effect" % "3.7.1",
+  "berlin.yuna"    % "nats-server" % "2.15.0" % Test,
+  "org.typelevel" %% "weaver-cats" % "0.13.0" % Test
 )

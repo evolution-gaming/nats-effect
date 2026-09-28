@@ -2,7 +2,7 @@ package com.evolution.natseffect.jetstream
 
 import cats.effect.*
 import cats.effect.implicits.*
-import cats.effect.std.{Hotswap, Mutex}
+import cats.effect.std.{Mutex, NonEmptyHotswap}
 import cats.implicits.*
 import com.evolution.natseffect.jetstream.KeyValueReader.*
 
@@ -38,21 +38,21 @@ trait DynamicKeyValueReader[F[_]] extends KeyValueReader[F] {
 object DynamicKeyValueReader {
 
   private class Impl[F[_]: MonadCancelThrow](
-    hotswap: Hotswap[F, KeyValueReader.Impl[F]],
+    hotswap: NonEmptyHotswap[F, KeyValueReader.Impl[F]],
     createReader: KeyFilters => Resource[F, KeyValueReader.Impl[F]],
     mutex: Mutex[F]
   ) extends DynamicKeyValueReader[F] {
 
     override def get(key: Key): F[Option[Value]] =
-      hotswap.get.use(_.traverse(_.get(key)).map(_.flatten))
+      hotswap.get.use(_.get(key))
 
     override def keys: F[Set[Key]] =
-      hotswap.get.use(_.traverse(_.keys).map(_.getOrElse(Set.empty)))
+      hotswap.get.use(_.keys)
 
     override def updateFilters(f: KeyFilters => KeyFilters): F[Unit] =
       mutex.lock.surround {
         hotswap.get
-          .use(kvReader => f(kvReader.map(_.keyFilters).getOrElse(Set.empty[String])).pure[F])
+          .use(kvReader => f(kvReader.keyFilters).pure[F])
           .flatMap(newFilters => hotswap.swap(createReader(newFilters)))
           .void
       }
@@ -86,7 +86,7 @@ object DynamicKeyValueReader {
 
     createReader = (filters: KeyFilters) => KeyValueReader.impl(kv, filters, warmupTimeout)
 
-    (hotswap, _) <- Hotswap(createReader(keyFilters))
+    hotswap <- NonEmptyHotswap(createReader(keyFilters))
 
     mutex <- Mutex[F].toResource
   } yield new Impl(hotswap, createReader, mutex)
