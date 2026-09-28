@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The paced consume engine (`KeyValue.watchPaced` / `watchAllPaced`, `StreamContext.createOrderedPacedConsumer` /
+  `getPacedConsumerContext`) mistook the server's routine expiry of an idle pull for an early pull terminus: the local window deadline
+  (armed at publish) always fired before the server's `expiresIn` clock (started at receipt), so the server's `408` landed at the head of
+  the next window and tripped the 500 ms early-terminus guard — a non-draining sleep and a redundant second pull per idle window.
+  Statuses are now matched to the pull they answer via jnats's per-pull reply subjects, and stale ones are skipped. No API or
+  configuration change; the callback engine is unaffected.
+
 ## [1.3.1] - 2026-07-28
 
 ### Added

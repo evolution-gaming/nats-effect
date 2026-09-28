@@ -91,12 +91,14 @@ private[natseffect] object PacedPullEngine {
   /** One established subscription, as the engine sees it: a step yielding the next classified [[Directive]], the pull handle, and the
     * liveness check that tells a dead subscription apart from an idle one (the step just goes quiet either way). `next` must apply the
     * given `Poll` to the message wait alone, so that waiting is the only cancelable point of the engine's masked take-to-handle step and a
-    * taken message is always classified. Torn down as a whole by the Resource that produced it.
+    * taken message is always classified. `tryNext` is the non-waiting form of the same step: `Some` exactly when a message was already
+    * buffered, classified like `next` would. Torn down as a whole by the Resource that produced it.
     */
   final case class ActiveSubscription[F[_]](
     consumerName: String,
     pull: PullRequestOptions => F[Unit],
     next: Poll[F] => F[Directive],
+    tryNext: F[Option[Directive]],
     isActive: F[Boolean]
   )
 
@@ -214,6 +216,16 @@ private[natseffect] object PacedPullEngine {
         }
       }
 
+    // The non-waiting form of the `awaitDirective`, for messages that are already buffered. There is
+    // nothing to cancel as there is no wait.
+    def pollDirective(active: ActiveSubscription[F]): F[Option[Directive]] =
+      F.uncancelable { _ =>
+        active.tryNext.flatTap {
+          case Some(Directive.Deliver(message)) => handleMessage(message)
+          case _                                => F.unit
+        }
+      }
+
     def probeAlive(state: Ref[F, SubscriptionState]): F[Boolean] =
       state.get.flatMap { s =>
         // Only a definite "consumer not found" counts as dead; transient lookup errors must not
@@ -328,44 +340,54 @@ private[natseffect] object PacedPullEngine {
       def windowOver(early: Boolean): WindowOutcome =
         if (deliveredAny) WindowOutcome.Handled else WindowOutcome.Idle(early)
 
+      def continueAfter(directive: Directive): F[WindowOutcome] =
+        directive match {
+          case Directive.Deliver(_) =>
+            // Already handled inside the masked step
+            if (remaining <= 1) F.pure[WindowOutcome](WindowOutcome.Handled)
+            else drainWindow(state, active, deadline, remaining - 1, deliveredAny = true)
+          case Directive.Skip     => drainWindow(state, active, deadline, remaining, deliveredAny)
+          case Directive.PullOver =>
+            // The pull terminated server-side; ending well before the deadline is what
+            // pullLoop's hot-loop guard keys on
+            F.monotonic.map(end => windowOver(early = (deadline - end) > EarlyEmptyThreshold))
+          case Directive.Restart(reason) =>
+            F.pure[WindowOutcome](CycleEnd.Resubscribe(reason, Duration.Zero))
+          case Directive.Fail(e) =>
+            // The one recovery that is not a return value: raised so subscribeLoop's
+            // attempt routes it through the progressive-backoff path
+            F.raiseError[WindowOutcome](e)
+        }
+
       unlessStopped[WindowOutcome](state)(CycleEnd.Stopped) {
-        F.monotonic.flatMap { now =>
-          val timeLeft = deadline - now
-          if (timeLeft <= Duration.Zero) F.pure(windowOver(early = false))
-          else
-            awaitDirective(active)
-              .timeout(timeLeft.max(1.milli))
-              .flatMap {
-                case Directive.Deliver(_) =>
-                  // Already handled inside the masked step
-                  if (remaining <= 1) F.pure[WindowOutcome](WindowOutcome.Handled)
-                  else drainWindow(state, active, deadline, remaining - 1, deliveredAny = true)
-                case Directive.Skip     => drainWindow(state, active, deadline, remaining, deliveredAny)
-                case Directive.PullOver =>
-                  // The pull terminated server-side; ending well before the deadline is what
-                  // pullLoop's hot-loop guard keys on
-                  F.monotonic.map(end => windowOver(early = (deadline - end) > EarlyEmptyThreshold))
-                case Directive.Restart(reason) =>
-                  F.pure[WindowOutcome](CycleEnd.Resubscribe(reason, Duration.Zero))
-                case Directive.Fail(e) =>
-                  // The one recovery that is not a return value: raised so subscribeLoop's
-                  // attempt routes it through the progressive-backoff path
-                  F.raiseError[WindowOutcome](e)
-              }
-              .recoverWith {
-                case _: TimeoutException =>
-                  // The window expired waiting (never "early") - or the deadline fired during a
-                  // masked step, whose message was still fully processed and only this window's
-                  // label was lost. A dead subscription goes quiet the same way, so distinguish
-                  // via the liveness handle
-                  active.isActive.flatMap {
-                    case true  => F.pure(windowOver(early = false))
-                    case false =>
-                      unlessStopped[WindowOutcome](state)(CycleEnd.Stopped)(
-                        F.pure(CycleEnd.Resubscribe("subscription inactive", InitialRetryDelay))
-                      )
+        // Hot path first: an already-buffered message is taken without the per-take deadline
+        // machinery below (a timer registration and racing fibers per take - measured to halve a
+        // fast handler's throughput).
+        pollDirective(active).flatMap {
+          case Some(directive) => continueAfter(directive)
+          case None            =>
+            F.monotonic.flatMap { now =>
+              val timeLeft = deadline - now
+              if (timeLeft <= Duration.Zero) F.pure(windowOver(early = false))
+              else
+                awaitDirective(active)
+                  .timeout(timeLeft.max(1.milli))
+                  .flatMap(continueAfter)
+                  .recoverWith {
+                    case _: TimeoutException =>
+                      // The window expired waiting (never "early") - or the deadline fired during a
+                      // masked step, whose message was still fully processed and only this window's
+                      // label was lost. A dead subscription goes quiet the same way, so distinguish
+                      // via the liveness handle
+                      active.isActive.flatMap {
+                        case true  => F.pure(windowOver(early = false))
+                        case false =>
+                          unlessStopped[WindowOutcome](state)(CycleEnd.Stopped)(
+                            F.pure(CycleEnd.Resubscribe("subscription inactive", InitialRetryDelay))
+                          )
+                      }
                   }
-              }
+            }
         }
       }
     }
