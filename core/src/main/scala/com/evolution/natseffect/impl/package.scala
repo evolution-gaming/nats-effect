@@ -4,7 +4,7 @@ import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
 import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxOptionId, none}
 import io.nats.client.ConnectionListener.Events
-import io.nats.client.Options.{Builder, HostnameResolveMode}
+import io.nats.client.Options.Builder
 import io.nats.client.impl.CatsBasedDispatcherFactory
 
 import java.lang
@@ -142,7 +142,7 @@ package object impl {
         if (useDefaultTls) builder.secure()
         if (useTrustAllTls) builder.opentls()
         if (!forceFlushOnRequest) builder.dontForceFlushOnRequest()
-        if (enableFastFallback) builder.hostnameResolveMode(HostnameResolveMode.HappyEyeballs)
+        if (enableFastFallback) builder.enableFastFallback()
 
         builder.build()
       }
