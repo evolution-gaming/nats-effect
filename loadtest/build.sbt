@@ -4,7 +4,7 @@ name := "nats-effect-loadtest"
 
 publish / skip := true
 
-libraryDependencies += "berlin.yuna" % "nats-server" % "2.12.1"
+libraryDependencies += "berlin.yuna" % "nats-server" % "2.15.0"
 
 Compile / run / fork := true
 
