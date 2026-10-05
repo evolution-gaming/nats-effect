@@ -2,7 +2,8 @@ package com.evolution.natseffect
 
 import cats.effect.{Async, Resource}
 import cats.syntax.all.*
-import com.evolution.natseffect.impl.{CompletableFutureOps, OptionsOps, WrappedConnection}
+import cats.effect.Deferred
+import com.evolution.natseffect.impl.{AsyncConnection, CompletableFutureOps, OptionsOps, WrappedConnection}
 import io.nats.client.Options.DEFAULT_URL
 import io.nats.client.{AuthHandler, Connection as JConnection, Nats as JNats, Options as JOptions}
 
@@ -112,10 +113,25 @@ object Nats {
         }
       }
 
-    for {
-      javaOptions    <- options.asJava
-      javaConnection <- Resource.make(Async[F].blocking(doConnect(javaOptions)))(doDisconnect)
-    } yield new WrappedConnection[F](javaConnection, options)
+    def connectAsynchronously(javaOptions: JOptions) = {
+      def connectUntilEstablished(javaConnection: Deferred[F, WrappedConnection[F]]): F[Unit] =
+        Async[F]
+          .uncancelable { _ =>
+            Async[F].blocking(JNats.connect(javaOptions)).flatMap(c => javaConnection.complete(new WrappedConnection[F](c, options)).void)
+          }
+          .handleErrorWith(_ => Async[F].sleep(options.reconnectWait) >> connectUntilEstablished(javaConnection))
+
+      for {
+        javaConnection <- Resource.make(Deferred[F, WrappedConnection[F]])(_.tryGet.flatMap(_.traverse_(c => doDisconnect(c.asJava))))
+        _              <- Async[F].background(connectUntilEstablished(javaConnection))
+        established = Async[F].timeoutTo(javaConnection.get, options.connectionTimeout, (new Connection.NotEstablishedException).raiseError)
+      } yield new AsyncConnection[F](established, options)
+    }
+
+    options.asJava.flatMap { javaOptions =>
+      if (options.connectAsynchronously) connectAsynchronously(javaOptions)
+      else Resource.make(Async[F].blocking(doConnect(javaOptions)))(doDisconnect).map(new WrappedConnection[F](_, options))
+    }
   }
 
   /** This method works exactly as `io.nats.client.Nats.credentials(String)`, but returns an effect instead.

@@ -1,8 +1,8 @@
 package com.evolution.natseffect
 
 import cats.effect.implicits.genTemporalOps
-import cats.effect.{Deferred, IO}
-import cats.implicits.{catsSyntaxApplicativeError, toFunctorOps}
+import cats.effect.{Deferred, IO, Resource}
+import cats.syntax.all.*
 import com.evolution.natseffect.impl.{JavaWrapper, JConnection}
 import io.nats.client.Connection.Status
 import io.nats.client.ConnectionListener.Events
@@ -78,6 +78,93 @@ class ConnectionSpec(global: GlobalRead) extends NatsSpec(global) {
       _             <- Nats.connect(options)
       receivedEvent <- deferred.get.timeout(5.second).toResource
     } yield expect(receivedEvent == Events.CONNECTED)
+  }
+
+  testResource("connect asynchronously") { ctx =>
+    for {
+      deferred <- Deferred[IO, Events].toResource
+      listener  = new ConnectionListener[IO] {
+        override def connectionEvent(conn: Connection[IO], `type`: Events, time: Long, uriDetails: String): IO[Unit] =
+          deferred.complete(`type`).void
+      }
+      options <- IO(
+        Options[IO]().withConnectAsynchronously(true).withNatsServerUris(Seq(ctx.url())).withConnectionListener(Some(listener))
+      ).toResource
+      connection    <- Nats.connect(options)
+      receivedEvent <- deferred.get.timeout(5.seconds).toResource
+      status        <- connection.status.toResource
+      _             <- connection.publish("subject", Array.emptyByteArray).toResource
+    } yield expect(receivedEvent == Events.CONNECTED && status == Status.CONNECTED)
+  }
+
+  testResource("wait for the asynchronous connection in operations") { ctx =>
+    for {
+      options    <- IO(Options[IO]().withConnectAsynchronously(true).withNatsServerUris(Seq(ctx.url()))).toResource
+      connection <- Nats.connect(options)
+      // issued right away, before the connection is likely to be established
+      _      <- connection.publish("subject", Array.emptyByteArray).toResource
+      status <- connection.status.toResource
+    } yield expect(status == Status.CONNECTED)
+  }
+
+  testResource("return immediately and fail operations if not connected asynchronously within connectionTimeout") { _ =>
+    for {
+      options <- IO(
+        Options[IO]()
+          .withConnectAsynchronously(true)
+          .withConnectionTimeout(100.millis)
+          .withNatsServerUris(Seq("nats://localhost:1111"))
+      ).toResource
+      // acquisition and release must not wait for the connection
+      result <- Nats
+        .connect(options)
+        .use { connection =>
+          (
+            connection.status.attempt,
+            connection.publish("subject", Array.emptyByteArray).attempt,
+            connection.createDispatcher().use_.attempt
+          ).tupled
+        }
+        .timeout(5.seconds)
+        .toResource
+      (status, publish, dispatcher) = result
+    } yield expect.all(
+      status.left.exists(_.isInstanceOf[Connection.NotEstablishedException]),
+      publish.left.exists(_.isInstanceOf[Connection.NotEstablishedException]),
+      dispatcher.left.exists(_.isInstanceOf[Connection.NotEstablishedException])
+    )
+  }
+
+  testResource("keep connecting asynchronously until the server is available") { _ =>
+    val port = 4224
+    for {
+      options <- IO(
+        Options[IO]()
+          .withConnectAsynchronously(true)
+          .withReconnectWait(100.millis)
+          .withConnectionTimeout(100.millis)
+          .withNatsServerUris(Seq(s"nats://127.0.0.1:$port"))
+      ).toResource
+      connection <- Nats.connect(options)
+      // let a few passes fail before the server is up
+      before <- (IO.sleep(500.millis) >> connection.status).attempt.toResource
+      _      <- Resource.make(
+        IO.blocking(
+          new berlin.yuna.natsserver.logic.Nats(
+            berlin.yuna.natsserver.config.NatsOptions
+              .natsBuilder()
+              .port(port)
+              .config(berlin.yuna.natsserver.config.NatsConfig.NET, "127.0.0.1")
+              .autostart(true)
+              .shutdownHook(false)
+          )
+        )
+      )(server => IO.blocking(server.close()))
+      after <- connection.status.attempt.iterateUntil(_.isRight).timeout(10.seconds).toResource
+    } yield expect.all(
+      before.left.exists(_.isInstanceOf[Connection.NotEstablishedException]),
+      after == Right(Status.CONNECTED)
+    )
   }
 
 }
