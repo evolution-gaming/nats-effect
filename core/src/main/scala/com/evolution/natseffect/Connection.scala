@@ -405,3 +405,9 @@ trait Connection[F[_]] {
   def outgoingPendingBytes: F[Long]
 
 }
+
+object Connection {
+
+  /** Raised by operations of a connection created with [[Options.connectAsynchronously]] until the connection is established */
+  final class NotEstablishedException extends IllegalStateException("Connection is not established yet")
+}
