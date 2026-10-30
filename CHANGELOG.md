@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Options.withConnectAsynchronously`: `Nats.connect` returns immediately and connects in a background fiber.
+  This allows applications to not block on NATS connection during startup. Unavailable NATS brokers will not lead to
+  process crashes.
+
 ### Fixed
 
 - The paced consume engine (`KeyValue.watchPaced` / `watchAllPaced`, `StreamContext.createOrderedPacedConsumer` /
