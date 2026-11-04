@@ -74,7 +74,7 @@ class ConnectionSpec(global: GlobalRead) extends NatsSpec(global) {
             deferred.complete(`type`).void
         }
       ).toResource
-      options       <- IO(Options[IO]().withNatsServerUris(Seq(ctx.url())).withConnectionListener(Some(listener))).toResource
+      options       <- IO(Options[IO]().withNatsServerUris(Seq(ctx.url())).withConnectionListener1(Some(listener))).toResource
       _             <- Nats.connect(options)
       receivedEvent <- deferred.get.timeout(5.second).toResource
     } yield expect(receivedEvent == Events.CONNECTED)

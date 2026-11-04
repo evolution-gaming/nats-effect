@@ -1,8 +1,7 @@
 package com.evolution.natseffect
 
 import cats.effect.Async
-import cats.effect.std.Dispatcher as CEDispatcher
-import com.evolution.natseffect.impl.UnwrappedErrorListener
+import com.evolution.natseffect.impl.{EffectRunner, UnwrappedErrorListener}
 
 /** This library groups problems into four categories: <dl> <dt>Errors</dt> <dd>The server sent an error message using the {@code -err}
   * protocol operation.</dd> <dt>Exceptions</dt> <dd>A Java exception occurred, and was handled by the library.</dd> <dt>Slow Consumers</dt>
@@ -66,7 +65,7 @@ trait ErrorListener[F[_]] {
     */
   def socketWriteTimeout(conn: Connection[F]): F[Unit]
 
-  private[natseffect] def asJava(dispatcher: CEDispatcher[F], options: Options[F])(implicit F: Async[F]): UnwrappedErrorListener[F] =
-    new UnwrappedErrorListener[F](this, dispatcher, options)
+  private[natseffect] def asJava(options: Options[F], effectRunner: EffectRunner[F])(implicit F: Async[F]): UnwrappedErrorListener[F] =
+    new UnwrappedErrorListener[F](this, options, effectRunner)
 
 }

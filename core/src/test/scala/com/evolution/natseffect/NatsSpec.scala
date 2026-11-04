@@ -1,12 +1,15 @@
 package com.evolution.natseffect
 
 import berlin.yuna.natsserver.logic.Nats
+import cats.effect.unsafe.IORuntime
 import cats.effect.{IO, Resource}
 import weaver.{Expectations, GlobalRead, IOSuite, TestName}
 
 import scala.util.Random
 
 abstract class NatsSpec(global: GlobalRead) extends IOSuite {
+
+  implicit protected val runtime: IORuntime = IORuntime.global
 
   override def maxParallelism = 1
 

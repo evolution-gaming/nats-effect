@@ -1,83 +1,92 @@
 package com.evolution.natseffect.impl
 
-import cats.effect.std.Dispatcher
+import cats.Applicative
+import cats.syntax.all.*
 import com.evolution.natseffect.StatisticsCollector
 
-private[natseffect] class UnwrappedStatisticsCollector[F[_]](val statisticsCollector: StatisticsCollector[F], dispatcher: Dispatcher[F])
-    extends JStatisticsCollector {
+private[natseffect] class UnwrappedStatisticsCollector[F[_]: Applicative](
+  val statisticsCollector: StatisticsCollector[F],
+  effectRunner: EffectRunner[F]
+) extends JStatisticsCollector {
   override def setAdvancedTracking(trackAdvanced: Boolean): Unit = ()
 
-  override def incrementPingCount(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementPingCount)
+  override def incrementPingCount(): Unit = effectRunner.run(statisticsCollector.incrementPingCount)
 
-  override def incrementReconnects(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementReconnects)
+  override def incrementReconnects(): Unit = effectRunner.run(statisticsCollector.incrementReconnects)
 
-  override def incrementDroppedCount(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementDroppedCount)
+  override def incrementDroppedCount(): Unit = effectRunner.run(statisticsCollector.incrementDroppedCount)
 
-  override def incrementOkCount(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementOkCount)
+  override def incrementOkCount(): Unit = effectRunner.run(statisticsCollector.incrementOkCount)
 
-  override def incrementErrCount(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementErrCount)
+  override def incrementErrCount(): Unit = effectRunner.run(statisticsCollector.incrementErrCount)
 
-  override def incrementExceptionCount(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementExceptionCount)
+  override def incrementExceptionCount(): Unit = effectRunner.run(statisticsCollector.incrementExceptionCount)
 
-  override def incrementRequestsSent(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementRequestsSent)
+  override def incrementRequestsSent(): Unit = effectRunner.run(statisticsCollector.incrementRequestsSent)
 
-  override def incrementRepliesReceived(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementRepliesReceived)
+  override def incrementRepliesReceived(): Unit = effectRunner.run(statisticsCollector.incrementRepliesReceived)
 
   override def incrementDuplicateRepliesReceived(): Unit =
-    dispatcher.unsafeRunAndForget(statisticsCollector.incrementDuplicateRepliesReceived)
+    effectRunner.run(statisticsCollector.incrementDuplicateRepliesReceived)
 
   override def incrementOrphanRepliesReceived(): Unit =
-    dispatcher.unsafeRunAndForget(statisticsCollector.incrementOrphanRepliesReceived)
+    effectRunner.run(statisticsCollector.incrementOrphanRepliesReceived)
 
-  override def incrementInMsgs(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementInMsgs)
+  override def incrementInMsgs(): Unit = effectRunner.run(statisticsCollector.incrementInMsgs)
 
-  override def incrementOutMsgs(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementOutMsgs)
+  override def incrementOutMsgs(): Unit = effectRunner.run(statisticsCollector.incrementOutMsgs)
 
-  override def incrementInBytes(bytes: Long): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementInBytes(bytes))
+  override def incrementInBytes(bytes: Long): Unit = effectRunner.run(statisticsCollector.incrementInBytes(bytes))
 
-  override def incrementOutBytes(bytes: Long): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementOutBytes(bytes))
+  override def incrementOutBytes(bytes: Long): Unit = effectRunner.run(statisticsCollector.incrementOutBytes(bytes))
 
-  override def incrementFlushCounter(): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.incrementFlushCounter)
+  override def incrementIn(bytes: Long): Unit =
+    effectRunner.run(statisticsCollector.incrementInMsgs *> statisticsCollector.incrementInBytes(bytes))
+
+  override def incrementOut(bytes: Long): Unit =
+    effectRunner.run(statisticsCollector.incrementOutMsgs *> statisticsCollector.incrementOutBytes(bytes))
+
+  override def incrementFlushCounter(): Unit = effectRunner.run(statisticsCollector.incrementFlushCounter)
 
   override def incrementOutstandingRequests(): Unit =
-    dispatcher.unsafeRunAndForget(statisticsCollector.incrementOutstandingRequests)
+    effectRunner.run(statisticsCollector.incrementOutstandingRequests)
 
   override def decrementOutstandingRequests(): Unit =
-    dispatcher.unsafeRunAndForget(statisticsCollector.decrementOutstandingRequests)
+    effectRunner.run(statisticsCollector.decrementOutstandingRequests)
 
-  override def registerRead(bytes: Long): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.registerRead(bytes))
+  override def registerRead(bytes: Long): Unit = effectRunner.run(statisticsCollector.registerRead(bytes))
 
-  override def registerWrite(bytes: Long): Unit = dispatcher.unsafeRunAndForget(statisticsCollector.registerWrite(bytes))
+  override def registerWrite(bytes: Long): Unit = effectRunner.run(statisticsCollector.registerWrite(bytes))
 
-  override def getPings: Long = dispatcher.unsafeRunSync(statisticsCollector.pings)
+  override def getPings: Long = effectRunner.run(statisticsCollector.pings)
 
-  override def getReconnects: Long = dispatcher.unsafeRunSync(statisticsCollector.reconnects)
+  override def getReconnects: Long = effectRunner.run(statisticsCollector.reconnects)
 
-  override def getDroppedCount: Long = dispatcher.unsafeRunSync(statisticsCollector.droppedCount)
+  override def getDroppedCount: Long = effectRunner.run(statisticsCollector.droppedCount)
 
-  override def getOKs: Long = dispatcher.unsafeRunSync(statisticsCollector.OKs)
+  override def getOKs: Long = effectRunner.run(statisticsCollector.OKs)
 
-  override def getErrs: Long = dispatcher.unsafeRunSync(statisticsCollector.errs)
+  override def getErrs: Long = effectRunner.run(statisticsCollector.errs)
 
-  override def getExceptions: Long = dispatcher.unsafeRunSync(statisticsCollector.exceptions)
+  override def getExceptions: Long = effectRunner.run(statisticsCollector.exceptions)
 
-  override def getRequestsSent: Long = dispatcher.unsafeRunSync(statisticsCollector.requestsSent)
+  override def getRequestsSent: Long = effectRunner.run(statisticsCollector.requestsSent)
 
-  override def getRepliesReceived: Long = dispatcher.unsafeRunSync(statisticsCollector.repliesReceived)
+  override def getRepliesReceived: Long = effectRunner.run(statisticsCollector.repliesReceived)
 
-  override def getDuplicateRepliesReceived: Long = dispatcher.unsafeRunSync(statisticsCollector.duplicateRepliesReceived)
+  override def getDuplicateRepliesReceived: Long = effectRunner.run(statisticsCollector.duplicateRepliesReceived)
 
-  override def getOrphanRepliesReceived: Long = dispatcher.unsafeRunSync(statisticsCollector.orphanRepliesReceived)
+  override def getOrphanRepliesReceived: Long = effectRunner.run(statisticsCollector.orphanRepliesReceived)
 
-  override def getInMsgs: Long = dispatcher.unsafeRunSync(statisticsCollector.inMsgs)
+  override def getInMsgs: Long = effectRunner.run(statisticsCollector.inMsgs)
 
-  override def getOutMsgs: Long = dispatcher.unsafeRunSync(statisticsCollector.outMsgs)
+  override def getOutMsgs: Long = effectRunner.run(statisticsCollector.outMsgs)
 
-  override def getInBytes: Long = dispatcher.unsafeRunSync(statisticsCollector.inBytes)
+  override def getInBytes: Long = effectRunner.run(statisticsCollector.inBytes)
 
-  override def getOutBytes: Long = dispatcher.unsafeRunSync(statisticsCollector.outBytes)
+  override def getOutBytes: Long = effectRunner.run(statisticsCollector.outBytes)
 
-  override def getFlushCounter: Long = dispatcher.unsafeRunSync(statisticsCollector.flushCounter)
+  override def getFlushCounter: Long = effectRunner.run(statisticsCollector.flushCounter)
 
-  override def getOutstandingRequests: Long = dispatcher.unsafeRunSync(statisticsCollector.outstandingRequests)
+  override def getOutstandingRequests: Long = effectRunner.run(statisticsCollector.outstandingRequests)
 }

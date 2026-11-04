@@ -1,5 +1,6 @@
 package com.evolution.natseffect
 
+import com.evolutiongaming.catshelper.ToTry
 import io.nats.client.Options.*
 import io.nats.client.impl.SSLContextFactory
 import io.nats.client.support.SSLUtils.DEFAULT_TLS_ALGORITHM
@@ -54,9 +55,12 @@ final class Options[F[_]] private (
   val authHandler: Option[AuthHandler] = None,
   val reconnectDelayHandler: Option[ReconnectDelayHandler] = None,
   val errorListener: Option[ErrorListener[F]] = None,
+  private[natseffect] val errorListenerToTry: Option[ToTry[F]] = None,
   val timeTraceLogger: Option[TimeTraceLogger] = None,
   val connectionListener: Option[ConnectionListener[F]] = None,
+  private[natseffect] val connectionListenerToTry: Option[ToTry[F]] = None,
   val statisticsCollector: Option[StatisticsCollector[F]] = None,
+  private[natseffect] val statisticsCollectorToTry: Option[ToTry[F]] = None,
   val dataPortType: Option[String] = Some(DEFAULT_DATA_PORT_TYPE),
   val proxy: Option[Proxy] = None,
   val useDefaultTls: Boolean = false,
@@ -123,9 +127,12 @@ final class Options[F[_]] private (
     authHandler: Option[AuthHandler] = authHandler,
     reconnectDelayHandler: Option[ReconnectDelayHandler] = reconnectDelayHandler,
     errorListener: Option[ErrorListener[F]] = errorListener,
+    errorListenerToTry: Option[ToTry[F]] = errorListenerToTry,
     timeTraceLogger: Option[TimeTraceLogger] = timeTraceLogger,
     connectionListener: Option[ConnectionListener[F]] = connectionListener,
+    connectionListenerToTry: Option[ToTry[F]] = connectionListenerToTry,
     statisticsCollector: Option[StatisticsCollector[F]] = statisticsCollector,
+    statisticsCollectorToTry: Option[ToTry[F]] = statisticsCollectorToTry,
     dataPortType: Option[String] = dataPortType,
     proxy: Option[Proxy] = proxy,
     useDefaultTls: Boolean = useDefaultTls,
@@ -190,9 +197,12 @@ final class Options[F[_]] private (
     authHandler,
     reconnectDelayHandler,
     errorListener,
+    errorListenerToTry,
     timeTraceLogger,
     connectionListener,
+    connectionListenerToTry,
     statisticsCollector,
+    statisticsCollectorToTry,
     dataPortType,
     proxy,
     useDefaultTls,
@@ -300,14 +310,26 @@ final class Options[F[_]] private (
   def withReconnectDelayHandler(reconnectDelayHandler: Option[ReconnectDelayHandler]): Options[F] =
     copy(reconnectDelayHandler = reconnectDelayHandler)
 
+  @deprecated("Use withErrorListener1", "2026-11-04")
   def withErrorListener(errorListener: Option[ErrorListener[F]]): Options[F] = copy(errorListener = errorListener)
+
+  def withErrorListener1(errorListener: Option[ErrorListener[F]])(implicit toTry: ToTry[F]): Options[F] =
+    copy(errorListener = errorListener, errorListenerToTry = Some(toTry))
 
   def withTimeTraceLogger(timeTraceLogger: Option[TimeTraceLogger]): Options[F] = copy(timeTraceLogger = timeTraceLogger)
 
+  @deprecated("Use withConnectionListener1", "2026-11-04")
   def withConnectionListener(connectionListener: Option[ConnectionListener[F]]): Options[F] = copy(connectionListener = connectionListener)
 
+  def withConnectionListener1(connectionListener: Option[ConnectionListener[F]])(implicit toTry: ToTry[F]): Options[F] =
+    copy(connectionListener = connectionListener, connectionListenerToTry = Some(toTry))
+
+  @deprecated("Use withStatisticsCollector1", "2026-11-04")
   def withStatisticsCollector(statisticsCollector: Option[StatisticsCollector[F]]): Options[F] =
     copy(statisticsCollector = statisticsCollector)
+
+  def withStatisticsCollector1(statisticsCollector: Option[StatisticsCollector[F]])(implicit toTry: ToTry[F]): Options[F] =
+    copy(statisticsCollector = statisticsCollector, statisticsCollectorToTry = Some(toTry))
 
   def withDataPortType(dataPortType: Option[String]): Options[F] = copy(dataPortType = dataPortType)
 

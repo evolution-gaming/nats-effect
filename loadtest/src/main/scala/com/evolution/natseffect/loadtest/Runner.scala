@@ -2,6 +2,7 @@ package com.evolution.natseffect.loadtest
 
 import cats.effect.{IO, Resource}
 import cats.effect.implicits.*
+import cats.effect.unsafe.IORuntime
 import cats.syntax.all.*
 import com.evolution.natseffect.jetstream.{EmbeddedNats, JetStream, KeyValue, KvWatchMode, SubscriptionWithWarmup, Warmup}
 import com.evolution.natseffect.{Nats, Options}
@@ -38,7 +39,7 @@ final case class RunResult(
 
 object Runner {
 
-  def run(config: Config, counters: Counters): IO[RunResult] =
+  def run(config: Config, counters: Counters)(implicit runtime: IORuntime): IO[RunResult] =
     resources(config, counters).use {
       case (kv, droppedCount) =>
         for {
@@ -72,7 +73,7 @@ object Runner {
   /** Embedded real nats-server + one shared connection (as in production) + a fresh KV bucket. Yields the KeyValue client and an effect
     * reading the connection-wide dropped-message count.
     */
-  private def resources(config: Config, counters: Counters): Resource[IO, (KeyValue[IO], IO[Long])] =
+  private def resources(config: Config, counters: Counters)(implicit runtime: IORuntime): Resource[IO, (KeyValue[IO], IO[Long])] =
     for {
       // Fail fast with a readable message when the port is taken - typically an orphaned nats-server from a
       // previous run killed by the watchdog's halt (which skips all finalizers).
@@ -89,7 +90,7 @@ object Runner {
       options = Options[IO]()
         .withNatsServerUris(Vector(server.url()))
         .withConnectionName(Some(s"loadtest-${config.scenario.name}"))
-        .withErrorListener(Some(new CountingErrorListener(counters)))
+        .withErrorListener1(Some(new CountingErrorListener(counters)))
 
       connection <- Nats.connect(options)
       js         <- JetStream.fromConnection[IO](connection).toResource

@@ -1,8 +1,7 @@
 package com.evolution.natseffect.jetstream
 
 import cats.effect.Async
-import cats.effect.std.Dispatcher as CEDispatcher
-import com.evolution.natseffect.impl.UnwrappedErrorListener
+import com.evolution.natseffect.impl.{EffectRunner, UnwrappedErrorListener}
 import com.evolution.natseffect.jetstream.impl.UnwrappedJetStreamErrorListener
 import com.evolution.natseffect.{Connection, ErrorListener, Options}
 import io.nats.client.support.Status
@@ -63,9 +62,9 @@ trait JetStreamErrorListener[F[_]] extends ErrorListener[F] {
   def pullStatusError(conn: Connection[F], sub: JetStreamSubscription[F], status: Status): F[Unit]
 
   override private[natseffect] def asJava(
-    dispatcher: CEDispatcher[F],
-    options: Options[F]
+    options: Options[F],
+    effectRunner: EffectRunner[F]
   )(implicit F: Async[F]): UnwrappedErrorListener[F] =
-    new UnwrappedJetStreamErrorListener[F](this, dispatcher, options)
+    new UnwrappedJetStreamErrorListener[F](this, options, effectRunner)
 
 }

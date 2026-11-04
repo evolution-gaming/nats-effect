@@ -1,7 +1,6 @@
 package com.evolution.natseffect.jetstream.impl
 
 import cats.effect.Async
-import cats.effect.std.Dispatcher
 import com.evolution.natseffect.Options
 import com.evolution.natseffect.impl.*
 import com.evolution.natseffect.jetstream.JetStreamErrorListener
@@ -10,14 +9,14 @@ import io.nats.client.support.Status
 
 private[natseffect] class UnwrappedJetStreamErrorListener[F[_]: Async](
   errorListener: JetStreamErrorListener[F],
-  dispatcher: Dispatcher[F],
-  options: Options[F]
-) extends UnwrappedErrorListener[F](errorListener, dispatcher, options) {
+  options: Options[F],
+  effectRunner: EffectRunner[F]
+) extends UnwrappedErrorListener[F](errorListener, options, effectRunner) {
 
   override def heartbeatAlarm(conn: JConnection, sub: JetStreamSubscription, lastStreamSequence: Long, lastConsumerSequence: Long): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(
+    effectRunner.run(
       errorListener.heartbeatAlarm(wrappedConnection, wrappedJetStreamSubscription, lastStreamSequence, lastConsumerSequence)
     )
   }
@@ -25,12 +24,12 @@ private[natseffect] class UnwrappedJetStreamErrorListener[F[_]: Async](
   override def pullStatusWarning(conn: JConnection, sub: JetStreamSubscription, status: Status): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(errorListener.pullStatusWarning(wrappedConnection, wrappedJetStreamSubscription, status))
+    effectRunner.run(errorListener.pullStatusWarning(wrappedConnection, wrappedJetStreamSubscription, status))
   }
 
   override def pullStatusError(conn: JConnection, sub: JetStreamSubscription, status: Status): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(errorListener.pullStatusError(wrappedConnection, wrappedJetStreamSubscription, status))
+    effectRunner.run(errorListener.pullStatusError(wrappedConnection, wrappedJetStreamSubscription, status))
   }
 }

@@ -1,8 +1,9 @@
 package com.evolution.natseffect
 
-import cats.effect.std.Dispatcher
+import cats.Applicative
 import cats.effect.{Async, Resource}
 import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxOptionId, none}
+import com.evolutiongaming.catshelper.ToTry
 import io.nats.client.ConnectionListener.Events
 import io.nats.client.Options.Builder
 import io.nats.client.impl.CatsBasedDispatcherFactory
@@ -38,40 +39,39 @@ package object impl {
     }
 
   implicit private[natseffect] class ConnectionListenerOps[F[_]](connectionListener: ConnectionListener[F]) {
-    def asJava(options: Options[F])(implicit F: Async[F]): Resource[F, JConnectionListener] =
-      Dispatcher.sequential.map { dispatcher =>
-        new JConnectionListener {
-          override def connectionEvent(conn: JConnection, `type`: Events): Unit = throw new NotImplementedError()
-          override def connectionEvent(conn: JConnection, `type`: Events, time: lang.Long, uriDetails: String): Unit =
-            dispatcher.unsafeRunAndForget(
-              connectionListener.connectionEvent(new WrappedConnection[F](conn, options), `type`, time, uriDetails)
-            )
-        }
+    def asJava(options: Options[F], effectRunner: EffectRunner[F])(implicit F: Async[F]): JConnectionListener =
+      new JConnectionListener {
+        override def connectionEvent(conn: JConnection, `type`: Events): Unit = throw new NotImplementedError()
+        override def connectionEvent(conn: JConnection, `type`: Events, time: lang.Long, uriDetails: String): Unit =
+          effectRunner.run(connectionListener.connectionEvent(new WrappedConnection[F](conn, options), `type`, time, uriDetails))
       }
   }
 
-  implicit private[natseffect] class ErrorListenerOps[F[_]](errorListener: ErrorListener[F]) {
-    def asJava(options: Options[F])(implicit F: Async[F]): Resource[F, JErrorListener] =
-      Dispatcher.parallel.map { dispatcher =>
-        errorListener.asJava(dispatcher, options)
-      }
-  }
-
-  implicit private[natseffect] class StatisticsCollectorOps[F[_]](statisticsCollector: StatisticsCollector[F]) {
-    def asJava(implicit F: Async[F]): Resource[F, JStatisticsCollector] =
-      for {
-        dispatcher <- Dispatcher.parallel
-      } yield new UnwrappedStatisticsCollector[F](statisticsCollector, dispatcher)
+  implicit private[natseffect] class StatisticsCollectorOps[F[_]: Applicative](statisticsCollector: StatisticsCollector[F]) {
+    def asJava(effectRunner: EffectRunner[F]): JStatisticsCollector =
+      new UnwrappedStatisticsCollector[F](statisticsCollector, effectRunner)
   }
 
   implicit private[natseffect] class OptionsOps[F[_]](options: Options[F]) {
     import options.*
-    def asJava(implicit F: Async[F]): Resource[F, JOptions] =
+    def asJava(implicit F: Async[F]): Resource[F, JOptions] = {
+      def makeEffectRunner(toTry: Option[ToTry[F]]): Resource[F, EffectRunner[F]] =
+        toTry match {
+          case Some(toTry) => Resource.pure(EffectRunner.fromToTry(toTry))
+          case None        => EffectRunner.dispatcherBased
+        }
+
       for {
-        errorListener       <- errorListener.fold(Resource.pure[F, Option[JErrorListener]](none))(_.asJava(options).map(_.some))
-        connectionListener  <- connectionListener.fold(Resource.pure[F, Option[JConnectionListener]](none))(_.asJava(options).map(_.some))
-        statisticsCollector <- statisticsCollector.fold(Resource.pure[F, Option[JStatisticsCollector]](none))(_.asJava.map(_.some))
-        dispatcherFactory   <- CatsBasedDispatcherFactory.make
+        errorListener <- errorListener.fold(Resource.pure[F, Option[JErrorListener]](none)) { l =>
+          makeEffectRunner(errorListenerToTry).map(l.asJava(options, _).some)
+        }
+        connectionListener <- connectionListener.fold(Resource.pure[F, Option[JConnectionListener]](none)) { l =>
+          makeEffectRunner(connectionListenerToTry).map(l.asJava(options, _).some)
+        }
+        statisticsCollector <- statisticsCollector.fold(Resource.pure[F, Option[JStatisticsCollector]](none)) { l =>
+          makeEffectRunner(statisticsCollectorToTry).map(l.asJava(_).some)
+        }
+        dispatcherFactory <- CatsBasedDispatcherFactory.make
       } yield {
         val builder = new Builder()
           .servers(natsServerUris.toArray)
@@ -146,6 +146,7 @@ package object impl {
 
         builder.build()
       }
+    }
   }
 
 }

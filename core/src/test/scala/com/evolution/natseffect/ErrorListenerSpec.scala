@@ -19,7 +19,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
           override def socketWriteTimeout(conn: Connection[IO]): IO[Unit]                           = IO.unit
         }
       ).toResource
-      options           <- IO(Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener(Some(errorListener))).toResource
+      options           <- IO(Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener1(Some(errorListener))).toResource
       connection        <- Nats.connect(options)
       dispatcher        <- connection.createDispatcher()
       _                 <- dispatcher.setPendingLimits(10L, 1024L).toResource
@@ -48,7 +48,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
         }
       ).toResource
       options <- IO(
-        Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener(Some(errorListener)).withMaxMessagesInOutgoingQueue(10)
+        Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener1(Some(errorListener)).withMaxMessagesInOutgoingQueue(10)
       ).toResource
       connection <- Nats.connect(options)
       subject    <- randomSubject.toResource
@@ -75,7 +75,7 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
         }
       ).toResource
       options <- IO(
-        Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener(Some(errorListener))
+        Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener1(Some(errorListener))
       ).toResource
       connection      <- Nats.connect(options)
       dispatcher      <- connection.createDispatcher()
