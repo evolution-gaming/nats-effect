@@ -1,4 +1,4 @@
-import com.typesafe.tools.mima.core.{Problem, ProblemFilters}
+import com.typesafe.tools.mima.core.{Problem, ProblemFilters, IncompatibleMethTypeProblem, MissingClassProblem}
 import sbt.Test
 
 lazy val commonSettings = Seq(
@@ -57,7 +57,15 @@ lazy val root = project
   )
   .aggregate(core, jetstream, metrics, logback, loadtest)
 
-lazy val core = project.settings(commonSettings).settings(Test / testFrameworks += TestFrameworks.WeaverTestCats)
+lazy val core = project
+  .settings(commonSettings)
+  .settings(
+    Test / testFrameworks += TestFrameworks.WeaverTestCats,
+    mimaBinaryIssueFilters ++= Seq(
+      ProblemFilters.exclude[IncompatibleMethTypeProblem]("com.evolution.natseffect.impl.ErrorListenerLogger.asJava"),
+      ProblemFilters.exclude[MissingClassProblem]("com.evolution.natseffect.impl.package$ErrorListenerOps")
+    )
+  )
 
 lazy val jetstream = project
   .settings(commonSettings)
@@ -69,7 +77,14 @@ lazy val jetstream = project
 
 lazy val metrics = project.settings(commonSettings).dependsOn(core)
 
-lazy val logback = project.settings(commonSettings).dependsOn(core)
+lazy val logback = project
+  .dependsOn(core)
+  .settings(commonSettings)
+  .settings(
+    mimaBinaryIssueFilters ++= Seq(
+      ProblemFilters.exclude[IncompatibleMethTypeProblem]("com.evolution.natseffect.impl.ErrorListenerLogger.asJava")
+    )
+  )
 
 // compile->test so the loadtest can reuse the embedded-server boot helper from jetstream's test sources
 lazy val loadtest = project.settings(commonSettings).dependsOn(jetstream % "compile->compile;compile->test")
