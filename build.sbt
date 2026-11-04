@@ -1,4 +1,4 @@
-import com.typesafe.tools.mima.core.{Problem, ProblemFilters, IncompatibleMethTypeProblem, MissingClassProblem}
+import com.typesafe.tools.mima.core.*
 import sbt.Test
 
 lazy val commonSettings = Seq(
@@ -63,7 +63,9 @@ lazy val core = project
     Test / testFrameworks += TestFrameworks.WeaverTestCats,
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[IncompatibleMethTypeProblem]("com.evolution.natseffect.impl.ErrorListenerLogger.asJava"),
-      ProblemFilters.exclude[MissingClassProblem]("com.evolution.natseffect.impl.package$ErrorListenerOps")
+      ProblemFilters.exclude[MissingClassProblem]("com.evolution.natseffect.impl.package$ErrorListenerOps"),
+      ProblemFilters.exclude[DirectMissingMethodProblem]("com.evolution.natseffect.impl.package.ErrorListenerOps"),
+      ProblemFilters.exclude[DirectMissingMethodProblem]("com.evolution.natseffect.impl.package.StatisticsCollectorOps")
     )
   )
 
