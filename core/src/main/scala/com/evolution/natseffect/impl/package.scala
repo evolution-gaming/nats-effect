@@ -43,7 +43,7 @@ package object impl {
         new JConnectionListener {
           override def connectionEvent(conn: JConnection, `type`: Events): Unit = throw new NotImplementedError()
           override def connectionEvent(conn: JConnection, `type`: Events, time: lang.Long, uriDetails: String): Unit =
-            dispatcher.unsafeRunSyncNoForkVoid(
+            dispatcher.unsafeRunAndForget(
               connectionListener.connectionEvent(new WrappedConnection[F](conn, options), `type`, time, uriDetails)
             )
         }
