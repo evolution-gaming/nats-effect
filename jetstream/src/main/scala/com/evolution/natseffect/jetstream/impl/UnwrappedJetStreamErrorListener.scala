@@ -17,7 +17,7 @@ private[natseffect] class UnwrappedJetStreamErrorListener[F[_]: Async](
   override def heartbeatAlarm(conn: JConnection, sub: JetStreamSubscription, lastStreamSequence: Long, lastConsumerSequence: Long): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(
+    dispatcher.unsafeRunSyncNoForkVoid(
       errorListener.heartbeatAlarm(wrappedConnection, wrappedJetStreamSubscription, lastStreamSequence, lastConsumerSequence)
     )
   }
@@ -25,12 +25,12 @@ private[natseffect] class UnwrappedJetStreamErrorListener[F[_]: Async](
   override def pullStatusWarning(conn: JConnection, sub: JetStreamSubscription, status: Status): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(errorListener.pullStatusWarning(wrappedConnection, wrappedJetStreamSubscription, status))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.pullStatusWarning(wrappedConnection, wrappedJetStreamSubscription, status))
   }
 
   override def pullStatusError(conn: JConnection, sub: JetStreamSubscription, status: Status): Unit = {
     val wrappedConnection            = new WrappedConnection[F](conn, options)
     val wrappedJetStreamSubscription = new WrappedJetStreamSubscription[F](sub)
-    dispatcher.unsafeRunAndForget(errorListener.pullStatusError(wrappedConnection, wrappedJetStreamSubscription, status))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.pullStatusError(wrappedConnection, wrappedJetStreamSubscription, status))
   }
 }
