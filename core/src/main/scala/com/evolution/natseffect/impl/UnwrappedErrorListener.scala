@@ -12,28 +12,28 @@ private[natseffect] class UnwrappedErrorListener[F[_]: Async](
 
   override def errorOccurred(conn: JConnection, error: String): Unit = {
     val wrappedConnection = new WrappedConnection[F](conn, options)
-    dispatcher.unsafeRunAndForget(errorListener.errorOccurred(wrappedConnection, error))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.errorOccurred(wrappedConnection, error))
   }
 
   override def exceptionOccurred(conn: JConnection, exp: Exception): Unit = {
     val wrappedConnection = new WrappedConnection[F](conn, options)
-    dispatcher.unsafeRunAndForget(errorListener.exceptionOccurred(wrappedConnection, exp))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.exceptionOccurred(wrappedConnection, exp))
   }
 
   override def slowConsumerDetected(conn: JConnection, consumer: JConsumer): Unit = {
     val wrappedConnection = new WrappedConnection[F](conn, options)
     val wrappedConsumer   = new WrappedConsumer(consumer)
-    dispatcher.unsafeRunAndForget(errorListener.slowConsumerDetected(wrappedConnection, wrappedConsumer))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.slowConsumerDetected(wrappedConnection, wrappedConsumer))
   }
 
   override def messageDiscarded(conn: JConnection, msg: JMessage): Unit = {
     val wrappedMessage    = new WrappedMessage(msg)
     val wrappedConnection = new WrappedConnection[F](conn, options)
-    dispatcher.unsafeRunAndForget(errorListener.messageDiscarded(wrappedConnection, wrappedMessage))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.messageDiscarded(wrappedConnection, wrappedMessage))
   }
 
   override def socketWriteTimeout(conn: JConnection): Unit = {
     val wrappedConnection = new WrappedConnection[F](conn, options)
-    dispatcher.unsafeRunAndForget(errorListener.socketWriteTimeout(wrappedConnection))
+    dispatcher.unsafeRunSyncNoForkVoid(errorListener.socketWriteTimeout(wrappedConnection))
   }
 }

@@ -1,7 +1,7 @@
 package com.evolution.natseffect
 
 import cats.effect.std.Dispatcher
-import cats.effect.{Async, Resource}
+import cats.effect.{Async, Resource, SyncIO}
 import cats.implicits.{catsSyntaxApplicativeError, catsSyntaxOptionId, none}
 import io.nats.client.ConnectionListener.Events
 import io.nats.client.Options.Builder
@@ -43,7 +43,7 @@ package object impl {
         new JConnectionListener {
           override def connectionEvent(conn: JConnection, `type`: Events): Unit = throw new NotImplementedError()
           override def connectionEvent(conn: JConnection, `type`: Events, time: lang.Long, uriDetails: String): Unit =
-            dispatcher.unsafeRunAndForget(
+            dispatcher.unsafeRunSyncNoForkVoid(
               connectionListener.connectionEvent(new WrappedConnection[F](conn, options), `type`, time, uriDetails)
             )
         }
@@ -62,6 +62,26 @@ package object impl {
       for {
         dispatcher <- Dispatcher.parallel
       } yield new UnwrappedStatisticsCollector[F](statisticsCollector, dispatcher)
+  }
+
+  implicit private[natseffect] class DispatcherOps[F[_]: Async](dispatcher: Dispatcher[F]) {
+    def unsafeRunSyncNoFork[T](effect: F[T]): T = {
+      val syncStepResult = Async[F].syncStep[SyncIO, T](effect, Int.MaxValue).unsafeRunSync()
+
+      syncStepResult match {
+        case Left(asyncEffect) => dispatcher.unsafeRunSync(asyncEffect)
+        case Right(result)     => result
+      }
+    }
+
+    def unsafeRunSyncNoForkVoid(effect: F[Unit]): Unit = {
+      val syncStepResult = Async[F].syncStep[SyncIO, Unit](effect, Int.MaxValue).unsafeRunSync()
+
+      syncStepResult match {
+        case Left(asyncEffect) => dispatcher.unsafeRunAndForget(asyncEffect)
+        case _                 =>
+      }
+    }
   }
 
   implicit private[natseffect] class OptionsOps[F[_]](options: Options[F]) {
