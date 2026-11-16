@@ -10,6 +10,7 @@ import io.nats.client.impl.CatsBasedDispatcherFactory
 import java.lang
 import java.util.concurrent.CompletableFuture
 import scala.jdk.DurationConverters.ScalaDurationOps
+import scala.util.control.NonFatal
 
 package object impl {
 
@@ -75,7 +76,12 @@ package object impl {
     }
 
     def unsafeRunSyncNoForkVoid(effect: F[Unit]): Unit = {
-      val syncStepResult = Async[F].syncStep[SyncIO, Unit](effect, Int.MaxValue).unsafeRunSync()
+      val syncStepResult =
+        try
+          Async[F].syncStep[SyncIO, Unit](effect, Int.MaxValue).unsafeRunSync()
+        catch {
+          case NonFatal(e) => Left[F[Unit], Unit](Async[F].raiseError(e))
+        }
 
       syncStepResult match {
         case Left(asyncEffect) => dispatcher.unsafeRunAndForget(asyncEffect)
