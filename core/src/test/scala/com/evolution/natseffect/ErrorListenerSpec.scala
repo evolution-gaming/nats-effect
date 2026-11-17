@@ -87,4 +87,32 @@ class ErrorListenerSpec(global: GlobalRead) extends NatsSpec(global) {
     } yield expect(thrownException == exceptionToThrow)
   }
 
+  testResource("perform async operation") { ctx =>
+    for {
+      syncDeferred  <- Deferred[IO, Unit].toResource
+      asyncDeferred <- Deferred[IO, Unit].toResource
+      errorListener <- IO(
+        new ErrorListener[IO] {
+          override def errorOccurred(conn: Connection[IO], error: String): IO[Unit]      = IO.unit
+          override def exceptionOccurred(conn: Connection[IO], exp: Exception): IO[Unit] =
+            syncDeferred.complete(()) *> IO.blocking(Thread.sleep(10)) *> asyncDeferred.complete(()).void
+          override def slowConsumerDetected(conn: Connection[IO], consumer: Consumer[IO]): IO[Unit] = IO.unit
+          override def messageDiscarded(conn: Connection[IO], msg: Message): IO[Unit]               = IO.unit
+          override def socketWriteTimeout(conn: Connection[IO]): IO[Unit]                           = IO.unit
+        }
+      ).toResource
+      options <- IO(
+        Options[IO]().withNatsServerUris(Seq(ctx.url())).withErrorListener(Some(errorListener))
+      ).toResource
+      connection      <- Nats.connect(options)
+      dispatcher      <- connection.createDispatcher()
+      subject         <- randomSubject.toResource
+      exceptionToThrow = new RuntimeException("oops")
+      _               <- dispatcher.subscribe(subject)(_ => IO.raiseError(exceptionToThrow)).toResource
+      _               <- connection.publish(subject, Array.empty).toResource
+      _               <- syncDeferred.get.timeout(5.seconds).toResource
+      _               <- asyncDeferred.get.timeout(5.seconds).toResource
+    } yield success
+  }
+
 }
