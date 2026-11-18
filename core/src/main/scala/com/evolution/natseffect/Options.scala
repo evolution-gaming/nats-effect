@@ -77,7 +77,8 @@ final class Options[F[_]] private (
   val sendBufferSize: Int = -1,
   val subjectValidationType: SubjectValidationType = SubjectValidationType.Lenient,
   val connectExecutor: Option[ExecutorService] = None,
-  val callbackExecutor: Option[ExecutorService] = None
+  val callbackExecutor: Option[ExecutorService] = None,
+  val connectAsynchronously: Boolean = false
 ) {
 
   private def copy(
@@ -146,7 +147,8 @@ final class Options[F[_]] private (
     sendBufferSize: Int = sendBufferSize,
     subjectValidationType: SubjectValidationType = subjectValidationType,
     connectExecutor: Option[ExecutorService] = connectExecutor,
-    callbackExecutor: Option[ExecutorService] = callbackExecutor
+    callbackExecutor: Option[ExecutorService] = callbackExecutor,
+    connectAsynchronously: Boolean = connectAsynchronously
   ): Options[F] = new Options(
     natsServerUris,
     reconnectOnConnect,
@@ -213,12 +215,15 @@ final class Options[F[_]] private (
     sendBufferSize,
     subjectValidationType,
     connectExecutor,
-    callbackExecutor
+    callbackExecutor,
+    connectAsynchronously
   )
 
   def withNatsServerUris(natsServerUris: Seq[String]): Options[F] = copy(natsServerUris = natsServerUris)
 
   def withReconnectOnConnect(reconnectOnConnect: Boolean): Options[F] = copy(reconnectOnConnect = reconnectOnConnect)
+
+  def withConnectAsynchronously(connectAsynchronously: Boolean): Options[F] = copy(connectAsynchronously = connectAsynchronously)
 
   def withNoRandomize(noRandomize: Boolean): Options[F] = copy(noRandomize = noRandomize)
 

@@ -77,6 +77,8 @@ object JetStream {
     Async[F].delay {
       val wrappedConnection = connection match {
         case wrapped: com.evolution.natseffect.impl.WrappedConnection[F] => wrapped
+        case _: com.evolution.natseffect.impl.AsyncConnection[F]         =>
+          throw new IllegalArgumentException("JetStream is not supported on a connection created with Options.connectAsynchronously")
         case _ => throw new IllegalArgumentException("Connection is not a WrappedConnection")
       }
       new JetStreamImpl[F](wrappedConnection)
